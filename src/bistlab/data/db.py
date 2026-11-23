@@ -51,3 +51,13 @@ def get_engine(url: str | None = None) -> Engine:
 def init_db(engine: Engine) -> None:
     """Tabloları oluşturur; zaten varsa dokunmaz."""
     Base.metadata.create_all(engine)
+
+
+class MacroObservation(Base):
+    """TCMB EVDS'den bir makro serinin tek gözlemi (ör. USD/TRY, TÜFE)."""
+
+    __tablename__ = "macro_observations"
+
+    code: Mapped[str] = mapped_column(String(64), primary_key=True)
+    date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    value: Mapped[float] = mapped_column(Float)
