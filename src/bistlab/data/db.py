@@ -61,3 +61,17 @@ class MacroObservation(Base):
     code: Mapped[str] = mapped_column(String(64), primary_key=True)
     date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
     value: Mapped[float] = mapped_column(Float)
+
+
+class FinancialItem(Base):
+    """Finansal tablodaki tek bir kalem (ör. THYAO, 2025 yıllık, gelir tablosu, EBITDA)."""
+
+    __tablename__ = "financial_items"
+
+    security_id: Mapped[int] = mapped_column(ForeignKey("securities.id"), primary_key=True)
+    period_end: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    statement: Mapped[str] = mapped_column(String(16), primary_key=True)
+    item: Mapped[str] = mapped_column(String(128), primary_key=True)
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)
+    value: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3))
