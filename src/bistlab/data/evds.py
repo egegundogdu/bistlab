@@ -63,6 +63,11 @@ def parse_items(payload: dict[str, Any], code: str) -> list[Observation]:
     return rows
 
 
+def deduplicate(rows: list[Observation]) -> list[Observation]:
+    """Aynı tarih birden fazla gelirse sonuncuyu tutar ve tarihe göre sıralar."""
+    return sorted(dict(rows).items())
+
+
 def fetch_series(code: str, start: dt.date, end: dt.date, api_key: str) -> list[Observation]:
     """Bir seriyi parça parça EVDS3'ten çeker (internet ve API anahtarı gerekir)."""
     rows: list[Observation] = []
@@ -71,7 +76,7 @@ def fetch_series(code: str, start: dt.date, end: dt.date, api_key: str) -> list[
             response = client.get(build_url(code, window_start, window_end))
             response.raise_for_status()
             rows.extend(parse_items(response.json(), code))
-    return rows
+        return deduplicate(rows)
 
 
 def save_series(session: Session, code: str, rows: list[Observation]) -> int:

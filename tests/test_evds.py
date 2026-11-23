@@ -51,3 +51,14 @@ def test_date_windows_cover_range_without_gaps_or_overlap() -> None:
     for (_, prev_end), (next_start, _) in zip(windows, windows[1:], strict=False):
         assert next_start == prev_end + dt.timedelta(days=1)
     assert all((end - start).days < 365 for start, end in windows)
+
+
+def test_deduplicate_keeps_one_row_per_date() -> None:
+    from bistlab.data.evds import deduplicate
+
+    rows = [
+        (dt.date(2008, 12, 1), 1.0),
+        (dt.date(2009, 1, 1), 2.0),
+        (dt.date(2008, 12, 1), 1.0),
+    ]
+    assert deduplicate(rows) == [(dt.date(2008, 12, 1), 1.0), (dt.date(2009, 1, 1), 2.0)]
