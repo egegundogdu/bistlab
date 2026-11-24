@@ -25,6 +25,7 @@ class Assumptions:
     base_fcf_years: int
     growth: tuple[float, ...]
     terminal_real_growth: float
+    lease_adjusted: bool
 
 
 def parse(data: dict[str, Any]) -> Assumptions:
@@ -50,6 +51,7 @@ def parse(data: dict[str, Any]) -> Assumptions:
         base_fcf_years=int(forecast.get("base_fcf_years", 1)),
         growth=tuple(float(g) for g in forecast["growth"]),
         terminal_real_growth=float(forecast["terminal_real_growth"]),
+        lease_adjusted=bool(forecast.get("lease_adjusted", False)),
     )
 
 

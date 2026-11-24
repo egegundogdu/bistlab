@@ -13,10 +13,11 @@ us_inflation = 0.025          # varsayım: uzun vadeli ABD enflasyonu
 use_blume = true
 
 [capital]
-pre_tax_cost_of_debt = 0.07   # varsayım: USD borçlanma maliyeti (filo finansmanı dahil)
+pre_tax_cost_of_debt = 0.07   # varsayım: USD borçlanma maliyeti
 tax_rate = 0.25
 
 [forecast]
 base_fcf_years = 3
 growth = [0.07, 0.06, 0.06, 0.05, 0.05]  # varsayım: nominal USD büyüme, 5 yıl
 terminal_real_growth = 0.02
+lease_adjusted = true         # filo büyük ölçüde kiralık: kira ödemesi FCF'den düşülür, kira borcu borçtan çıkar
