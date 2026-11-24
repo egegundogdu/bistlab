@@ -52,6 +52,19 @@ def project_cash_flows(base: float, growth: Sequence[float]) -> list[float]:
     return flows
 
 
+def adjust_for_leases(
+    items: pd.DataFrame, base_fcf: float, total_debt: float, years: int
+) -> tuple[float, float]:
+    """Kiralamayı faaliyet gideri gibi ele alır: (düzeltilmiş FCF, düzeltilmiş borç).
+
+    Yıllık kira ödemesi, kısa vadeli kira yükümlülüğü ile yaklaşık olarak FCF'den düşülür;
+    kira yükümlülükleri de borçtan çıkarılır. Böylece nakit akışı ile borç tutarlı olur.
+    """
+    lease_payment = average_last(items, "Current Capital Lease Obligation", years)
+    lease_liabilities = latest(items, "Capital Lease Obligations")
+    return base_fcf - lease_payment, total_debt - lease_liabilities
+
+
 def cost_of_capital(
     a: Assumptions, equity_value: float, debt_value: float, beta_value: float
 ) -> tuple[float, float]:
@@ -72,6 +85,40 @@ def terminal_growth(a: Assumptions) -> float:
     """Nominal terminal büyüme = (1 + reel büyüme) × (1 + uzun vadeli enflasyon) - 1."""
     inflation = a.us_inflation if a.currency == "USD" else a.local_inflation
     return (1 + a.terminal_real_growth) * (1 + inflation) - 1
+
+
+def implied_growth(
+    base_fcf: float,
+    years: int,
+    rate: float,
+    g_terminal: float,
+    net_debt: float,
+    shares: float,
+    target_per_share: float,
+) -> float | None:
+    """Ters DCF: hedef hisse değerini veren sabit yıllık FCF büyümesi (ikiye bölme).
+
+    Baz FCF pozitif değilse ya da çözüm [-%50, +%300] aralığında yoksa None döner.
+    """
+    if base_fcf <= 0:
+        return None
+
+    def value(growth: float) -> float:
+        flows = project_cash_flows(base_fcf, [growth] * years)
+        return dcf_value(flows, rate, g_terminal, net_debt, shares).per_share
+
+    low, high = -0.5, 3.0
+    if not value(low) <= target_per_share <= value(high):
+        return None
+    for _ in range(200):
+        mid = (low + high) / 2
+        if value(mid) < target_per_share:
+            low = mid
+        else:
+            high = mid
+        if high - low < 1e-7:
+            break
+    return (low + high) / 2
 
 
 def latest_macro(session: Session, code: str) -> float:
@@ -122,9 +169,12 @@ def main() -> None:
     price_try = float(closes.iloc[-1])
     shares = latest(items, "Ordinary Shares Number")
     market_cap = price_try * shares / to_try
+
     total_debt = latest(items, "Total Debt")
-    net_debt = total_debt - latest(items, "Cash And Cash Equivalents")
     base_fcf = average_last(items, "Free Cash Flow", a.base_fcf_years)
+    if a.lease_adjusted:
+        base_fcf, total_debt = adjust_for_leases(items, base_fcf, total_debt, a.base_fcf_years)
+    net_debt = total_debt - latest(items, "Cash And Cash Equivalents")
 
     ke, rate = cost_of_capital(a, market_cap, total_debt, beta_value)
     g = terminal_growth(a)
@@ -136,11 +186,21 @@ def main() -> None:
     print(f"{a.ticker} | raporlama para birimi: {cur}\n")
     print(f"Beta: ham {raw_beta:.2f} → kullanılan {beta_value:.2f} ({beta_note})")
     print(f"Özkaynak maliyeti: {ke:.1%} | WACC: {rate:.1%} | Terminal büyüme: {g:.1%}")
-    print(f"Baz FCF (son {a.base_fcf_years} yıl ort.): {_bn(base_fcf)} {cur}")
+    lease_note = "kiralama düzeltmeli" if a.lease_adjusted else "kiralama düzeltmesiz"
+    print(f"Baz FCF (son {a.base_fcf_years} yıl ort., {lease_note}): {_bn(base_fcf)} {cur}")
     print(f"Firma değeri: {_bn(result.enterprise_value)} {cur} | Net borç: {_bn(net_debt)} {cur}")
     print(f"Terminal değerin payı: {result.terminal_share:.0%}")
     print(f"\nHisse başı değer: {value_try:,.2f} TL | Son fiyat: {price_try:,.2f} TL", end="")
     print(f" | Fark: {value_try / price_try - 1:+.0%}")
+
+    implied = implied_growth(base_fcf, len(a.growth), rate, g, net_debt, shares, price_try / to_try)
+    if implied is None:
+        print("Ters DCF: çözüm yok (baz FCF negatif ya da aralık dışında).")
+    else:
+        print(
+            f"Ters DCF: Bugünkü fiyat, {len(a.growth)} yıl boyunca yıllık "
+            f"%{implied * 100:.1f} FCF büyümesi varsayıyor ({cur} bazında)."
+        )
 
     rates = [rate + d for d in (-0.02, -0.01, 0.0, 0.01, 0.02)]
     growths = [g + d for d in (-0.01, 0.0, 0.01)]

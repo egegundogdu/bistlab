@@ -48,3 +48,39 @@ def test_terminal_growth_uses_currency_inflation() -> None:
 
 def test_project_cash_flows() -> None:
     assert project_cash_flows(100, [0.10, 0.10]) == pytest.approx([110, 121])
+
+
+def test_lease_adjusted_defaults_to_false() -> None:
+    assert parse(_data("USD")).lease_adjusted is False
+
+
+def test_adjust_for_leases() -> None:
+    import datetime as dt
+
+    import pandas as pd
+
+    from bistlab.valuation.run import adjust_for_leases
+
+    index = [dt.date(2024, 12, 31), dt.date(2025, 12, 31)]
+    items = pd.DataFrame(
+        {"Current Capital Lease Obligation": [2.0, 4.0], "Capital Lease Obligations": [10.0, 12.0]},
+        index=index,
+    )
+    fcf, debt = adjust_for_leases(items, base_fcf=10.0, total_debt=20.0, years=2)
+    assert fcf == pytest.approx(7.0)  # 10 - ortalama(2, 4)
+    assert debt == pytest.approx(8.0)  # 20 - son kira yükümlülüğü 12
+
+
+def test_implied_growth_roundtrip() -> None:
+    from bistlab.valuation.dcf import dcf_value
+    from bistlab.valuation.run import implied_growth
+
+    flows = project_cash_flows(100, [0.15] * 5)
+    target = dcf_value(flows, 0.12, 0.03, 200, 10).per_share
+    assert implied_growth(100, 5, 0.12, 0.03, 200, 10, target) == pytest.approx(0.15, abs=1e-4)
+
+
+def test_implied_growth_none_for_negative_fcf() -> None:
+    from bistlab.valuation.run import implied_growth
+
+    assert implied_growth(-5, 5, 0.12, 0.03, 0, 10, 50) is None
