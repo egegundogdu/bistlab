@@ -95,3 +95,13 @@ def sensitivity_table(
         for g in growths
     }
     return pd.DataFrame(data, index=list(rates))
+
+
+def convert_rate(rate: float, inflation_from: float, inflation_to: float) -> float:
+    """Bir para birimindeki iskonto oranını diğerine çevirir (enflasyon farkı, Fisher)."""
+    return (1 + rate) * (1 + inflation_to) / (1 + inflation_from) - 1
+
+
+def blume_adjust(raw_beta: float) -> float:
+    """Blume düzeltmesi: tahmini betayı zaman içinde 1'e doğru çeker."""
+    return 0.67 * raw_beta + 0.33
