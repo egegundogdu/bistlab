@@ -39,6 +39,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hisse ve portföy risk raporu.")
     parser.add_argument("tickers", nargs="+", help="Hisse kodları, ör. THYAO ASELS BIMAS")
     parser.add_argument("--weights", nargs="+", type=float, help="Ağırlıklar (varsayılan eşit)")
+    parser.add_argument("--benchmark", help="Kıyas endeksi, ör. XU100 (portföye dahil edilmez)")
     parser.add_argument("--years", type=int, default=2, help="Kaç yıllık veri (varsayılan 2)")
     parser.add_argument("--risk-free", type=float, default=0.0, help="Yıllık risksiz faiz")
     parser.add_argument("--level", type=float, default=0.95, help="VaR güven düzeyi")
@@ -46,14 +47,19 @@ def main() -> None:
 
     tickers = [t.upper() for t in args.tickers]
     weights = args.weights or [1 / len(tickers)] * len(tickers)
+    benchmark = args.benchmark.upper() if args.benchmark else None
+    series = tickers + ([benchmark] if benchmark else [])
 
     with Session(get_engine()) as session:
-        closes = pd.concat([load_closes(session, t) for t in tickers], axis=1, join="inner")
+        closes = pd.concat([load_closes(session, t) for t in series], axis=1, join="inner")
     cutoff = closes.index.max() - pd.Timedelta(days=365 * args.years)
     returns = daily_returns(closes[closes.index >= cutoff])
 
     rows = {t: risk_row(returns[t], args.risk_free, args.level) for t in tickers}
-    rows["PORTFÖY"] = risk_row(portfolio_returns(returns, weights), args.risk_free, args.level)
+    portfolio = portfolio_returns(returns[tickers], weights)
+    rows["PORTFÖY"] = risk_row(portfolio, args.risk_free, args.level)
+    if benchmark:
+        rows[f"{benchmark} (kıyas)"] = risk_row(returns[benchmark], args.risk_free, args.level)
     table = pd.DataFrame(rows).T
 
     start, end = returns.index.min().date(), returns.index.max().date()
