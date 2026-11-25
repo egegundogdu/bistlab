@@ -29,6 +29,7 @@ SECRET = re.compile(
     r"(?i)(api[_-]?key|secret|password|passwd|token)\s*[=:]\s*[\"']?([A-Za-z0-9_\-]{12,})"
 )
 PLACEHOLDER_WORDS = ("example", "your", "xxx", "changeme", "placeholder")
+ALLOW_MARKER = "selfcheck: allow"  # bilinçli sahte anahtarlar (test fikstürleri)
 PR_SUFFIX = re.compile(r"\(#\d+\)\s*$")
 
 
@@ -57,7 +58,8 @@ def gitignore_covers(text: str, name: str) -> bool:
 def find_secrets(text: str) -> list[str]:
     """Gerçek gizli anahtara benzeyen atamaların anahtar adlarını döner."""
     hits = []
-    for match in SECRET.finditer(text):
+    scanned = "\n".join(line for line in text.splitlines() if ALLOW_MARKER not in line)
+    for match in SECRET.finditer(scanned):
         value = match[2]
         if any(word in value.casefold() for word in PLACEHOLDER_WORDS):
             continue
@@ -261,6 +263,32 @@ def data_checks(engine: Engine) -> list[Finding]:
     ]
 
 
+def lineage_check(engine: Engine) -> list[Finding]:
+    """DI-01 sütunun varlığına bakar (tasarım); bu kontrol gerçekten dolduğuna (işleyiş)."""
+    recent = dt.date.today() - dt.timedelta(days=7)
+    with Session(engine) as session:
+        total = (
+            session.scalar(select(func.count()).select_from(Price).where(Price.date >= recent)) or 0
+        )
+        missing = (
+            session.scalar(
+                select(func.count())
+                .select_from(Price)
+                .where(Price.date >= recent, Price.fetched_at.is_(None))
+            )
+            or 0
+        )
+    return [
+        Finding(
+            "DI-02",
+            "Denetim izi",
+            "Son 7 günün fiyatlarında fetched_at dolu (işleyiş)",
+            total > 0 and missing == 0,
+            f"{missing}/{total} kayıtta eksik",
+        )
+    ]
+
+
 def operations_checks(root: Path) -> list[Finding]:
     compose = root / "docker-compose.yml"
     compose_text = compose.read_text() if compose.exists() else ""
@@ -295,6 +323,7 @@ def main() -> None:
         secret_checks(root)
         + change_checks(root)
         + data_checks(get_engine())
+        + lineage_check(get_engine())
         + operations_checks(root)
     )
     for f in findings:

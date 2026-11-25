@@ -83,6 +83,7 @@ def save_history(session: Session, ticker: str, history: pd.DataFrame) -> int:
         security = Security(ticker=ticker, name=ticker)
         session.add(security)
         session.flush()
+    fetched_at = dt.datetime.now(dt.UTC)
     for row in history.to_dict("records"):
         session.merge(
             Price(
@@ -93,6 +94,7 @@ def save_history(session: Session, ticker: str, history: pd.DataFrame) -> int:
                 low=float(row["low"]),
                 close=float(row["close"]),
                 volume=int(row["volume"]),
+                fetched_at=fetched_at,
             )
         )
     return len(history)

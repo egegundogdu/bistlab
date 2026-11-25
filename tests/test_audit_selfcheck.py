@@ -18,8 +18,8 @@ def test_gitignore_covers() -> None:
 
 
 def test_find_secrets_flags_real_looking_keys() -> None:
-    assert find_secrets('EVDS_API_KEY="aB3dE5fG7hJ9kL"') == ["API_KEY"]
-    assert find_secrets("password: s3cretValue2026") == ["password"]
+    assert find_secrets('EVDS_API_KEY="aB3dE5fG7hJ9kL"') == ["API_KEY"]  # selfcheck: allow
+    assert find_secrets("password: s3cretValue2026") == ["password"]  # selfcheck: allow
 
 
 def test_find_secrets_ignores_placeholders_and_short_values() -> None:
@@ -52,3 +52,10 @@ def test_render_markdown() -> None:
     text = render_markdown(findings, dt.date(2026, 11, 26))
     assert "2 kontrolden 1 uygun, 1 bulgu" in text
     assert "| YD-01 | Yedekleme | Yedek betiği | Bulgu (Orta) | yok / eksik |" in text
+
+
+def test_find_secrets_respects_allow_marker() -> None:
+    text = (
+        "token = Zx9Yw8Vu7Ts6Rq  # selfcheck: allow\npassword: Qq1Ww2Ee3Rr4Tt"  # selfcheck: allow
+    )
+    assert find_secrets(text) == ["password"]

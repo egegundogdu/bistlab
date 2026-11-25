@@ -48,6 +48,7 @@ def save_prices(session: Session, ticker: str, prices: pd.DataFrame) -> int:
         session.add(security)
         session.flush()
 
+    fetched_at = dt.datetime.now(dt.UTC)
     for record in prices.to_dict("records"):
         session.merge(
             Price(
@@ -58,6 +59,7 @@ def save_prices(session: Session, ticker: str, prices: pd.DataFrame) -> int:
                 low=float(record["low"]),
                 close=float(record["close"]),
                 volume=int(record["volume"]),
+                fetched_at=fetched_at,
             )
         )
     session.commit()
