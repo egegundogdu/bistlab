@@ -25,6 +25,7 @@ SECTIONS = {
     "BORÇLANMA SENETLERİ": "debt",
     "T.REPO": "reverse_repo",
     "VIOP Nakit Teminatı": "derivative_margin",
+    "MEVDUAT": "deposit",
     "DİĞER": "other",
 }
 SUBSECTIONS = {
@@ -39,12 +40,13 @@ SUBSECTIONS = {
     "Döviz": "fx_cash",
 }
 
-ROW_END = re.compile(
-    r"\s(?P<value>[\d,]+\.\d{2})\s+-?\d+\.\d{2}\s+-?\d+\.\d{2}(?:\s+-?\d+\.\d{2})?\s*$"
-)
+# Raporlar iki biçimde gelebiliyor: 1,234.56 (İş Portföy) ya da 1.234,56 (Ak Portföy).
+AMOUNT = r"-?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}"
+PERCENT = r"-?\d+[.,]\d{2}"
+ROW_END = re.compile(rf"\s(?P<value>{AMOUNT})\s+{PERCENT}\s+{PERCENT}(?:\s+{PERCENT})?\s*$")
 ISIN = re.compile(r"\b([A-Z]{2}[A-Z0-9]{9}\d)\b")
-NAV = re.compile(r"Net Varlık Değeri\s*:\s*([\d,]+\.\d+)")
-PORTFOLIO = re.compile(r"^FON PORTFÖY DEĞERİ\s+([\d,]+\.\d{2})")
+NAV = re.compile(rf"Net Varlık Değeri\s*:\s*({AMOUNT})")
+PORTFOLIO = re.compile(rf"^FON PORTFÖY DEĞERİ\s+({AMOUNT})")
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,9 @@ class FundReport:
 
 
 def to_number(text: str) -> float:
+    """Son ayraç ondalık ayracıdır: '1,234.56' ve '1.234,56' -> 1234.56."""
+    if text.rfind(",") > text.rfind("."):
+        return float(text.replace(".", "").replace(",", "."))
     return float(text.replace(",", ""))
 
 
@@ -128,6 +133,8 @@ def parse_report(text: str) -> FundReport:
             previous = line
             continue
         code, currency = split_code(line[: row.start()], previous)
+        if asset_type.startswith("fund"):  # "ALE AKPORTFÖY TL" -> "ALE"
+            code = code.split()[0]
         isin = ISIN.search(line)
         holdings.append(
             Holding(
