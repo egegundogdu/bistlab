@@ -49,3 +49,7 @@ testpaths = ["tests"]
 [[tool.mypy.overrides]]
 module = ["yfinance", "yfinance.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["scipy", "scipy.*"]
+ignore_missing_imports = true
