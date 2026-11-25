@@ -6,7 +6,7 @@ import datetime as dt
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import BigInteger, Date, Float, ForeignKey, String, create_engine
+from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, String, create_engine, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -37,6 +37,10 @@ class Price(Base):
     low: Mapped[float] = mapped_column(Float)
     close: Mapped[float] = mapped_column(Float)
     volume: Mapped[int] = mapped_column(BigInteger)
+    source: Mapped[str] = mapped_column(String(20), server_default="yfinance")
+    fetched_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 def get_engine(url: str | None = None) -> Engine:

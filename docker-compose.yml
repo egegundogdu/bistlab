@@ -3,7 +3,7 @@ services:
     image: postgres:17
     environment:
       POSTGRES_USER: bistlab
-      POSTGRES_PASSWORD: bistlab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env içinde tanımlı olmalı}
       POSTGRES_DB: bistlab
     ports:
       - "5432:5432"
