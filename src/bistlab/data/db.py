@@ -75,3 +75,37 @@ class FinancialItem(Base):
     source: Mapped[str] = mapped_column(String(16), primary_key=True)
     value: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(3))
+
+
+class Fund(Base):
+    """TEFAS'ta işlem gören bir yatırım fonu (ör. IKP)."""
+
+    __tablename__ = "funds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(8), unique=True)
+    name: Mapped[str | None] = mapped_column(String(300))
+
+
+class FundPrice(Base):
+    """Fonun günlük birim pay fiyatı."""
+
+    __tablename__ = "fund_prices"
+
+    fund_id: Mapped[int] = mapped_column(ForeignKey("funds.id"), primary_key=True)
+    date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    price: Mapped[float] = mapped_column(Float)
+
+
+class FundHolding(Base):
+    """Aylık portföy dağılım raporundaki tek bir varlık (hisse, tahvil, BYF, repo...)."""
+
+    __tablename__ = "fund_holdings"
+
+    fund_id: Mapped[int] = mapped_column(ForeignKey("funds.id"), primary_key=True)
+    report_date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    asset: Mapped[str] = mapped_column(String(120), primary_key=True)  # kod ya da ad
+    asset_type: Mapped[str] = mapped_column(String(40))  # hisse, tahvil, byf, repo...
+    weight: Mapped[float] = mapped_column(Float)  # portföy payı, 0-1
+    market_value: Mapped[float | None] = mapped_column(Float)
+    currency: Mapped[str | None] = mapped_column(String(3))

@@ -15,6 +15,7 @@ dependencies = [
     "python-dotenv>=1.2.4",
     "scipy>=1.18.1",
     "sqlalchemy>=2.1.9",
+    "tefas-crawler>=0.6.0",
     "yfinance>=1.8.0",
 ]
 
@@ -52,4 +53,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["scipy", "scipy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tefas", "tefas.*"]
 ignore_missing_imports = true
