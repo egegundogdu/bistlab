@@ -109,3 +109,4 @@ class FundHolding(Base):
     weight: Mapped[float] = mapped_column(Float)  # portföy payı, 0-1
     market_value: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str | None] = mapped_column(String(3))
+    isin: Mapped[str | None] = mapped_column(String(12))
