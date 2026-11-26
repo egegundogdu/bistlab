@@ -109,3 +109,12 @@ def test_longest_flat_run() -> None:
     assert longest_flat_run(closes([10, 11, 12, 13, 14, 15])) == 1
     assert longest_flat_run(closes([10, 10, 10, 11, 11, 12])) == 3
     assert longest_flat_run(closes([10, 10, 10, 10, 10, 10])) == 6
+
+
+def test_foreign_series_one_business_day_behind_is_not_stale() -> None:
+    calendar = [D(2026, 11, d) for d in (20, 23, 24, 25, 26)]
+    us = bars([D(2026, 11, d) for d in (20, 23, 24, 25)])
+    q = assess("ENR.DE", us, calendar)
+    assert q.market == "Yabancı" and q.stale == 0 and q.status == "İyi"
+    two_behind = assess("ENR.DE", bars([D(2026, 11, d) for d in (20, 23, 24)]), calendar)
+    assert two_behind.stale == 1 and two_behind.status == "Dikkat"

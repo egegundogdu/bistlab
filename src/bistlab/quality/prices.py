@@ -40,6 +40,7 @@ SPIKE_MIN = 0.5
 SPIKE_WINDOW = 3
 SPIKE_RETURN = 0.10
 FLAT_RUN = 10
+FOREIGN_LAG = 1  # yabancı borsa: saat farkı ve tatil yüzünden 1 iş günü gecikme normal
 BIST_SHARE = 0.99
 FOREIGN_GAP_BUSDAYS = 3
 STALE_LIMIT = 3
@@ -197,7 +198,7 @@ def assess(ticker: str, bars: list[Bar], calendar: list[dt.date]) -> SeriesQuali
         stale = sum(day > dates[-1] for day in calendar)
     else:
         missing = business_gaps(dates)
-        stale = business_days_after(dates[-1], calendar[-1])
+        stale = max(0, business_days_after(dates[-1], calendar[-1]) - FOREIGN_LAG)
     return SeriesQuality(
         ticker=ticker,
         market="BIST" if bist else "Yabancı",
