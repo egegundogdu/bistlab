@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 from pathlib import Path
 from typing import Annotated, Literal, Protocol
 
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
@@ -29,11 +31,13 @@ from bistlab.api.schemas import (
     MertonOut,
     MultiplesOut,
     OptionOut,
+    PricesOut,
     QualityOut,
     ReturnsOut,
+    SecuritiesOut,
     StressOut,
 )
-from bistlab.api.services import DataSource, DataUnavailable
+from bistlab.api.services import CatalogSource, DataSource, DataUnavailable
 from bistlab.api.tools import ToolSource
 from bistlab.data.db import FundHolding, get_engine
 from bistlab.funds.holding_prices import latest_holdings
@@ -50,12 +54,21 @@ TICKER = re.compile(r"^[A-Z0-9.]{1,16}$")
 GOVERNANCE_DIR = Path("data/kap")
 
 
-class FullSource(DataSource, CoreSource, ToolSource, Protocol):
+class FullSource(DataSource, CoreSource, ToolSource, CatalogSource, Protocol):
     """API'nin ihtiyaç duyduğu tüm okuma işlemleri."""
 
 
 class DatabaseSource:
     """Üretim veri kaynağı: PostgreSQL."""
+
+    def securities(self) -> list[tuple[str, dt.date, float]]:
+        query = text(
+            "SELECT DISTINCT ON (s.ticker) s.ticker, p.date, p.close FROM prices p "
+            "JOIN securities s ON s.id = p.security_id WHERE p.close > 0 "
+            "ORDER BY s.ticker, p.date DESC"
+        )
+        with get_engine().connect() as conn:
+            return [(str(t), d, float(c)) for t, d, c in conn.execute(query)]
 
     def ping(self) -> bool:
         try:
@@ -121,9 +134,16 @@ Tickers = Annotated[list[str] | None, Query(description="Kodlar; boşsa 8 ana hi
 
 app = FastAPI(
     title="bistlab",
-    version="0.3.0",
+    version="0.4.0",
     description="BIST analiz ve risk platformu — salt okunur API. "
     "Eğitim amaçlıdır; yatırım tavsiyesi değildir.",
+)
+CORS_ORIGINS = os.environ.get("BISTLAB_CORS_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in CORS_ORIGINS if origin.strip()],
+    allow_methods=["GET"],
+    allow_headers=["*"],
 )
 
 
@@ -281,3 +301,17 @@ def funds_xray(
         return tools.fund_xray(source, fund, years, other)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=f"Fon raporu yok: {error}") from None
+
+
+@app.get("/securities")
+def securities(source: Source) -> SecuritiesOut:
+    return services.securities(source)
+
+
+@app.get("/prices/{code}")
+def prices(source: Source, code: str, since: dt.date = dt.date(2023, 1, 2)) -> PricesOut:
+    ticker = clean_tickers([code])[0]
+    try:
+        return services.price_history(source, ticker, since)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Fiyat yok: {ticker}") from None

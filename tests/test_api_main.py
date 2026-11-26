@@ -54,3 +54,20 @@ def test_tool_endpoints() -> None:
     assert hedge.status_code == 200
     assert c.get("/funds/IKP/xray", params={"compare": "KVT"}).status_code == 200
     assert c.get("/funds/YOK/xray").status_code == 404
+
+
+def test_catalog_and_prices() -> None:
+    c = client(FakeSource())
+    tickers = [r["ticker"] for r in c.get("/securities").json()["results"]]
+    assert tickers == sorted(tickers) and "THYAO" in tickers
+    prices = c.get("/prices/thyao", params={"since": "2026-01-01"}).json()
+    assert prices["ticker"] == "THYAO" and prices["points"][0]["date"] >= "2026-01-01"
+    assert c.get("/prices/YOK").status_code == 404
+
+
+def test_cors_allows_local_frontend_only() -> None:
+    c = client(FakeSource())
+    ok = c.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    other = c.get("/health", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in other.headers

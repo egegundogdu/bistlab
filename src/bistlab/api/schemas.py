@@ -312,3 +312,23 @@ class FundXrayOut(BaseModel):
     risk: FundRiskOut | None
     overlap: FundOverlapOut | None
     disclaimer: str = DISCLAIMER
+
+
+class SecurityOut(BaseModel):
+    ticker: str
+    last_date: dt.date
+    last_close: float
+
+
+class SecuritiesOut(BaseModel):
+    results: list[SecurityOut]
+
+
+class PricePoint(BaseModel):
+    date: dt.date
+    close: float
+
+
+class PricesOut(BaseModel):
+    ticker: str
+    points: list[PricePoint]

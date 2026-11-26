@@ -147,3 +147,6 @@ class FakeSource:
         points = self.series["XU100"]
         index = pd.DatetimeIndex([pd.Timestamp(d) for d, _ in points])
         return pd.Series([float(c) / 1000 for _, c in points], index=index)
+
+    def securities(self) -> list[tuple[str, dt.date, float]]:
+        return [(t, pts[-1][0], float(pts[-1][1])) for t, pts in self.series.items()]

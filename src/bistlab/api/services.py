@@ -18,9 +18,13 @@ from bistlab.api.schemas import (
     HistoricalOut,
     HistoricalRow,
     PerformanceOut,
+    PricePoint,
+    PricesOut,
     QualityOut,
     ReturnsOut,
     ScenarioOut,
+    SecuritiesOut,
+    SecurityOut,
     SeriesQualityOut,
     StressOut,
 )
@@ -59,6 +63,10 @@ class DataSource(Protocol):
     def prices(self, ticker: str, since: dt.date) -> Points: ...
 
     def fcf_inputs(self, ticker: str) -> tuple[dt.date, str, float, float] | None: ...
+
+
+class CatalogSource(Protocol):
+    def securities(self) -> list[tuple[str, dt.date, float]]: ...
 
 
 class DataUnavailable(Exception):
@@ -248,3 +256,19 @@ def macro_stress(
             ),
         ),
     )
+
+
+def securities(source: CatalogSource) -> SecuritiesOut:
+    return SecuritiesOut(
+        results=[
+            SecurityOut(ticker=t, last_date=d, last_close=c)
+            for t, d, c in sorted(source.securities())
+        ]
+    )
+
+
+def price_history(source: DataSource, ticker: str, since: dt.date) -> PricesOut:
+    points = source.prices(ticker, since)
+    if not points:
+        raise KeyError(ticker)
+    return PricesOut(ticker=ticker, points=[PricePoint(date=d, close=c) for d, c in points])
