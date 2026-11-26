@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import gzip
+import json
 import re
 import subprocess
+import sys
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -289,6 +293,185 @@ def lineage_check(engine: Engine) -> list[Finding]:
     ]
 
 
+MAX_BACKUP_AGE_DAYS = 7
+
+
+def audit_vulnerabilities(report: str) -> list[str]:
+    """pip-audit JSON çıktısından 'paket sürüm: açık' listesi."""
+    data = json.loads(report)
+    found = []
+    for dep in data.get("dependencies", []):
+        for vuln in dep.get("vulns", []):
+            found.append(f"{dep['name']} {dep.get('version', '?')}: {vuln['id']}")
+    return found
+
+
+def restore_verdict(
+    restored_rows: int, restored_tables: str, live_tables: str, age_days: float
+) -> tuple[bool, str]:
+    """Geri yüklenen kopya kullanılabilir mi ve yedek yeterince taze mi."""
+    problems = []
+    if restored_rows <= 0:
+        problems.append("geri yüklenen prices boş")
+    if restored_tables != live_tables:
+        problems.append("tablo listesi canlıyla aynı değil")
+    if age_days > MAX_BACKUP_AGE_DAYS:
+        problems.append(f"yedek {age_days:.0f} günlük (> {MAX_BACKUP_AGE_DAYS})")
+    detail = f"{restored_rows} fiyat satırı geri yüklendi, yedek {age_days:.1f} günlük"
+    return not problems, "; ".join(problems) or detail
+
+
+def psql(database: str, *args: str, data: bytes | None = None) -> str:
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "db",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "bistlab",
+            "-d",
+            database,
+            *args,
+        ],
+        input=data if data is not None else b"",
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.decode().strip()
+
+
+def dependency_check(root: Path) -> list[Finding]:
+    requirements = root / "backups" / "requirements-audit.txt"
+    requirements.parent.mkdir(exist_ok=True)
+    exported = subprocess.run(
+        [
+            "uv",
+            "export",
+            "--format",
+            "requirements-txt",
+            "--no-hashes",
+            "--no-emit-project",
+            "-o",
+            str(requirements),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=root,
+    )
+    audit = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip_audit",
+            "-r",
+            str(requirements),
+            "--no-deps",
+            "--disable-pip",
+            "--format",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if exported.returncode != 0 or not audit.stdout.strip():
+        evidence = "pip-audit çalıştırılamadı: " + (audit.stderr or exported.stderr)[-120:]
+        return [
+            Finding(
+                "BY-02",
+                "Bağımlılık yönetimi",
+                "Bilinen güvenlik açığı yok",
+                False,
+                evidence.replace("\n", " "),
+                "Orta",
+            )
+        ]
+    vulns = audit_vulnerabilities(audit.stdout)
+    return [
+        Finding(
+            "BY-02",
+            "Bağımlılık yönetimi",
+            "Bilinen güvenlik açığı yok (pip-audit)",
+            not vulns,
+            ", ".join(vulns[:5]) or "taranan bağımlılıklarda açık yok",
+            "Yüksek",
+        )
+    ]
+
+
+def restore_check(root: Path) -> list[Finding]:
+    """Son yedeği geçici restore_check veritabanına açar; canlı DB'ye dokunmaz."""
+    backups = sorted((root / "backups").glob("bistlab-*.sql.gz"))
+    if not backups:
+        return [Finding("YD-02", "Yedekleme", "Son yedek geri yüklenebiliyor", False, "yedek yok")]
+    latest = backups[-1]
+    age_days = (time.time() - latest.stat().st_mtime) / 86400
+    tables_sql = (
+        "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables "
+        "WHERE table_schema = 'public'"
+    )
+    try:
+        psql(
+            "bistlab",
+            "-c",
+            "DROP DATABASE IF EXISTS restore_check;",
+            "-c",
+            "CREATE DATABASE restore_check;",
+        )
+        psql("restore_check", data=gzip.decompress(latest.read_bytes()))
+        rows = int(psql("restore_check", "-tAc", "SELECT count(*) FROM prices") or 0)
+        restored_tables = psql("restore_check", "-tAc", tables_sql)
+        live_tables = psql("bistlab", "-tAc", tables_sql)
+    except (subprocess.CalledProcessError, ValueError, OSError) as error:
+        return [
+            Finding(
+                "YD-02",
+                "Yedekleme",
+                "Son yedek geri yüklenebiliyor",
+                False,
+                f"{latest.name}: geri yükleme hatası ({type(error).__name__})",
+            )
+        ]
+    finally:
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "db",
+                "psql",
+                "-q",
+                "-U",
+                "bistlab",
+                "-d",
+                "bistlab",
+                "-c",
+                "DROP DATABASE IF EXISTS restore_check;",
+            ],
+            input=b"",
+            capture_output=True,
+            check=False,
+        )
+    passed, evidence = restore_verdict(rows, restored_tables, live_tables, age_days)
+    return [
+        Finding(
+            "YD-02",
+            "Yedekleme",
+            "Son yedek geri yüklenebiliyor ve ≤ 7 gün",
+            passed,
+            f"{latest.name}: {evidence}",
+        )
+    ]
+
+
 def operations_checks(root: Path) -> list[Finding]:
     compose = root / "docker-compose.yml"
     compose_text = compose.read_text() if compose.exists() else ""
@@ -324,6 +507,8 @@ def main() -> None:
         + change_checks(root)
         + data_checks(get_engine())
         + lineage_check(get_engine())
+        + dependency_check(root)
+        + restore_check(root)
         + operations_checks(root)
     )
     for f in findings:
