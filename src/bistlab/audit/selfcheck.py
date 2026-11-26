@@ -472,6 +472,32 @@ def restore_check(root: Path) -> list[Finding]:
     ]
 
 
+def quality_verdict(statuses: dict[str, str]) -> tuple[bool, str]:
+    """Seri durumlarından (kod → İyi/Dikkat/Sorunlu) VB-04 sonucu."""
+    values = list(statuses.values())
+    bad = sorted(code for code, status in statuses.items() if status == "Sorunlu")
+    summary = (
+        f"{len(values)} seri: {values.count('İyi')} iyi, {values.count('Dikkat')} dikkat, "
+        f"{len(bad)} sorunlu"
+    )
+    if bad:
+        summary += " (" + ", ".join(bad[:5]) + (" …" if len(bad) > 5 else "") + ")"
+    return not bad, summary
+
+
+def price_quality_check() -> list[Finding]:
+    """Fiyat kalitesi raporunu (bistlab.quality.prices) denetim kontrolüne çevirir."""
+    control = "Fiyat serilerinde sorunlu seri yok (kalite raporu)"
+    try:
+        from bistlab.quality.prices import assess_all, load_bars
+
+        results = assess_all(load_bars())
+    except (Exception, SystemExit) as error:
+        return [Finding("VB-04", "Veri bütünlüğü", control, False, f"çalıştırılamadı: {error}")]
+    passed, evidence = quality_verdict({q.ticker: q.status for q in results})
+    return [Finding("VB-04", "Veri bütünlüğü", control, passed, evidence)]
+
+
 def operations_checks(root: Path) -> list[Finding]:
     compose = root / "docker-compose.yml"
     compose_text = compose.read_text() if compose.exists() else ""
@@ -507,6 +533,7 @@ def main() -> None:
         + change_checks(root)
         + data_checks(get_engine())
         + lineage_check(get_engine())
+        + price_quality_check()
         + dependency_check(root)
         + restore_check(root)
         + operations_checks(root)
