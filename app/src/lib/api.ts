@@ -70,3 +70,30 @@ export type Returns = {
     real_annual: number | null;
   }[];
 };
+
+export type Dcf = {
+  ticker: string;
+  currency: string;
+  raw_beta: number;
+  beta: number;
+  beta_note: string;
+  cost_of_equity: number;
+  model_wacc: number;
+  model_terminal_growth: number;
+  wacc: number;
+  terminal_growth: number;
+  base_fcf: number;
+  lease_adjusted: boolean;
+  growth: number[];
+  enterprise_value: number;
+  net_debt: number;
+  equity_value: number;
+  terminal_share: number;
+  per_share_try: number;
+  price_try: number;
+  upside: number;
+  implied_growth: number | null;
+  sensitivity_rates: number[];
+  sensitivity_growths: number[];
+  sensitivity: number[][];
+};

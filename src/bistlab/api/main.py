@@ -22,6 +22,7 @@ from bistlab.api import core, services, tools
 from bistlab.api.core import CoreSource
 from bistlab.api.schemas import (
     CreditOut,
+    DcfOut,
     FcfListOut,
     FundXrayOut,
     GovernanceOut,
@@ -45,6 +46,8 @@ from bistlab.funds.replica import load_fund_prices
 from bistlab.funds.xray import to_series
 from bistlab.quality.prices import Bar, load_bars
 from bistlab.real.view import DEFAULT_TICKERS, Points, latest_fcf_inputs, load_macro, load_prices
+from bistlab.valuation import assumptions as assumptions_file
+from bistlab.valuation.assumptions import Assumptions
 from bistlab.valuation.beta import load_closes
 from bistlab.valuation.multiples import FX_SERIES
 from bistlab.valuation.report import load_items
@@ -118,6 +121,9 @@ class DatabaseSource:
         with Session(get_engine()) as session:
             return to_series(load_fund_prices(session, code))
 
+    def assumptions(self, ticker: str) -> Assumptions:
+        return assumptions_file.load(ticker)
+
     def governance_files(self) -> dict[str, str]:
         return {
             path.stem.split("_")[0].upper(): path.read_text(encoding="utf-8")
@@ -134,7 +140,7 @@ Tickers = Annotated[list[str] | None, Query(description="Kodlar; boşsa 8 ana hi
 
 app = FastAPI(
     title="bistlab",
-    version="0.4.0",
+    version="0.5.0",
     description="BIST analiz ve risk platformu — salt okunur API. "
     "Eğitim amaçlıdır; yatırım tavsiyesi değildir.",
 )
@@ -315,3 +321,23 @@ def prices(source: Source, code: str, since: dt.date = dt.date(2023, 1, 2)) -> P
         return services.price_history(source, ticker, since)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Fiyat yok: {ticker}") from None
+
+
+@app.get("/valuation/dcf/{code}")
+def valuation_dcf(
+    source: Source,
+    code: str,
+    wacc: Annotated[float | None, Query(gt=0, lt=2, description="WACC (boşsa model)")] = None,
+    terminal_growth: Annotated[
+        float | None, Query(gt=-0.5, lt=1, description="Uzun vadeli büyüme (boşsa model)")
+    ] = None,
+) -> DcfOut:
+    ticker = clean_tickers([code])[0]
+    try:
+        return core.dcf(source, ticker, wacc, terminal_growth)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail=f"{ticker} için varsayım dosyası ya da veri yok"
+        ) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
