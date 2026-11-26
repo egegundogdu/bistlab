@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from bistlab.common import column
+
 
 def current_ratio(current_assets: float, current_liabilities: float) -> float:
     """Cari oran = dönen varlıklar / kısa vadeli yükümlülükler."""
@@ -22,36 +24,29 @@ def cagr(start_value: float, end_value: float, years: float) -> float:
     return float((end_value / start_value) ** (1 / years) - 1)
 
 
-def _column(df: pd.DataFrame, name: str) -> pd.Series[float]:
-    """Kalem varsa sütununu, yoksa NaN dolu bir seri döner."""
-    if name in df.columns:
-        return df[name].astype(float)
-    return pd.Series(np.nan, index=df.index, dtype=float)
-
-
 def compute_ratios(items: pd.DataFrame) -> pd.DataFrame:
     """Yıllık kalem tablosundan (satır: dönem sonu, sütun: kalem) temel oranları hesaplar.
 
     Eksik kalem ya da sıfıra bölme olan oranlar NaN olarak döner; hata vermez.
     """
     df = items.sort_index()
-    revenue = _column(df, "Total Revenue")
-    ebitda = _column(df, "EBITDA")
-    net_income = _column(df, "Net Income")
+    revenue = column(df, "Total Revenue")
+    ebitda = column(df, "EBITDA")
+    net_income = column(df, "Net Income")
 
     ratios = pd.DataFrame(
         {
             "revenue_growth": revenue / revenue.shift(1) - 1,
-            "gross_margin": _column(df, "Gross Profit") / revenue,
+            "gross_margin": column(df, "Gross Profit") / revenue,
             "ebitda_margin": ebitda / revenue,
             "net_margin": net_income / revenue,
-            "roe": net_income / _column(df, "Common Stock Equity"),
-            "current_ratio": _column(df, "Current Assets") / _column(df, "Current Liabilities"),
+            "roe": net_income / column(df, "Common Stock Equity"),
+            "current_ratio": column(df, "Current Assets") / column(df, "Current Liabilities"),
             "net_debt_to_ebitda": (
-                _column(df, "Total Debt") - _column(df, "Cash And Cash Equivalents")
+                column(df, "Total Debt") - column(df, "Cash And Cash Equivalents")
             )
             / ebitda,
-            "interest_coverage": _column(df, "EBIT") / _column(df, "Interest Expense"),
+            "interest_coverage": column(df, "EBIT") / column(df, "Interest Expense"),
         },
         index=df.index,
     )

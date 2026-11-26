@@ -6,9 +6,19 @@ import datetime as dt
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, String, create_engine, func
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    create_engine,
+    func,
+    select,
+)
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -114,3 +124,14 @@ class FundHolding(Base):
     market_value: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str | None] = mapped_column(String(3))
     isin: Mapped[str | None] = mapped_column(String(12))
+
+
+def get_or_create_security(session: Session, ticker: str) -> Security:
+    """Hisse kaydını bulur; yoksa oluşturur."""
+    code = ticker.strip().upper().removesuffix(".IS")
+    security = session.scalar(select(Security).where(Security.ticker == code))
+    if security is None:
+        security = Security(ticker=code)
+        session.add(security)
+        session.flush()
+    return security

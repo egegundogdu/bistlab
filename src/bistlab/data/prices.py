@@ -7,10 +7,9 @@ import datetime as dt
 
 import pandas as pd
 import yfinance as yf
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from bistlab.data.db import Price, Security, get_engine, init_db
+from bistlab.data.db import Price, get_engine, get_or_create_security, init_db
 
 PRICE_COLUMNS = ["open", "high", "low", "close", "volume"]
 
@@ -41,12 +40,7 @@ def fetch_prices(ticker: str, start: dt.date, end: dt.date | None = None) -> pd.
 
 def save_prices(session: Session, ticker: str, prices: pd.DataFrame) -> int:
     """Fiyatları yazar; aynı gün zaten varsa günceller. Yazılan satır sayısını döner."""
-    code = ticker.strip().upper().removesuffix(".IS")
-    security = session.scalar(select(Security).where(Security.ticker == code))
-    if security is None:
-        security = Security(ticker=code)
-        session.add(security)
-        session.flush()
+    security = get_or_create_security(session, ticker)
 
     fetched_at = dt.datetime.now(dt.UTC)
     for record in prices.to_dict("records"):

@@ -10,7 +10,14 @@ import yfinance as yf
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from bistlab.data.db import Fund, FundHolding, Price, Security, get_engine, init_db
+from bistlab.data.db import (
+    Fund,
+    FundHolding,
+    Price,
+    get_engine,
+    get_or_create_security,
+    init_db,
+)
 
 # Bloomberg borsa kodu -> Yahoo Finance son eki
 EXCHANGE_SUFFIX = {
@@ -78,11 +85,7 @@ def latest_holdings(session: Session, fund_code: str) -> list[FundHolding]:
 
 
 def save_history(session: Session, ticker: str, history: pd.DataFrame) -> int:
-    security = session.scalars(select(Security).where(Security.ticker == ticker)).first()
-    if security is None:
-        security = Security(ticker=ticker, name=ticker)
-        session.add(security)
-        session.flush()
+    security = get_or_create_security(session, ticker)
     fetched_at = dt.datetime.now(dt.UTC)
     for row in history.to_dict("records"):
         session.merge(

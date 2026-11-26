@@ -26,7 +26,7 @@ def _validate(spot: float, strike: float, years: float, vol: float) -> None:
         raise ValueError("Vade ve volatilite negatif olamaz.")
 
 
-def _d1_d2(
+def d1_d2(
     spot: float, strike: float, years: float, rate: float, vol: float, dividend_yield: float
 ) -> tuple[float, float]:
     sqrt_t = math.sqrt(years)
@@ -54,7 +54,7 @@ def bs_price(
         if option == "call":
             return max(discounted_spot - discounted_strike, 0.0)
         return max(discounted_strike - discounted_spot, 0.0)
-    d1, d2 = _d1_d2(spot, strike, years, rate, vol, dividend_yield)
+    d1, d2 = d1_d2(spot, strike, years, rate, vol, dividend_yield)
     if option == "call":
         return discounted_spot * _N.cdf(d1) - discounted_strike * _N.cdf(d2)
     return discounted_strike * _N.cdf(-d2) - discounted_spot * _N.cdf(-d1)
@@ -82,7 +82,7 @@ def greeks(
     _validate(spot, strike, years, vol)
     if years == 0 or vol == 0:
         raise ValueError("Greeks için vade ve volatilite pozitif olmalı.")
-    d1, d2 = _d1_d2(spot, strike, years, rate, vol, dividend_yield)
+    d1, d2 = d1_d2(spot, strike, years, rate, vol, dividend_yield)
     q_disc = math.exp(-dividend_yield * years)
     r_disc = math.exp(-rate * years)
     pdf = _N.pdf(d1)

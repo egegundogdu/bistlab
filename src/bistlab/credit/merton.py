@@ -24,8 +24,10 @@ from scipy.optimize import root
 from scipy.stats import norm
 from sqlalchemy.orm import Session
 
-from bistlab.credit.scores import credit_table, item
+from bistlab.common import column
+from bistlab.credit.scores import credit_table
 from bistlab.data.db import get_engine
+from bistlab.derivatives.black_scholes import d1_d2
 from bistlab.funds.holding_prices import fetch_history, to_yahoo
 from bistlab.portfolio.risk import annualized_volatility
 from bistlab.valuation.beta import load_closes
@@ -44,20 +46,11 @@ def default_point(short_debt: float, long_debt: float) -> float:
     return short_debt + 0.5 * long_debt
 
 
-def _d1_d2(
-    asset_value: float, asset_vol: float, debt: float, rate: float, years: float
-) -> tuple[float, float]:
-    d1 = (math.log(asset_value / debt) + (rate + 0.5 * asset_vol**2) * years) / (
-        asset_vol * math.sqrt(years)
-    )
-    return d1, d1 - asset_vol * math.sqrt(years)
-
-
 def merton_equity(
     asset_value: float, asset_vol: float, debt: float, rate: float, years: float = 1.0
 ) -> tuple[float, float]:
     """Varlıklardan hisse değeri ve hisse oynaklığı."""
-    d1, d2 = _d1_d2(asset_value, asset_vol, debt, rate, years)
+    d1, d2 = d1_d2(asset_value, debt, years, rate, asset_vol, 0.0)
     equity = asset_value * norm.cdf(d1) - debt * math.exp(-rate * years) * norm.cdf(d2)
     equity_vol = norm.cdf(d1) * asset_vol * asset_value / equity
     return float(equity), float(equity_vol)
@@ -78,18 +71,18 @@ def solve_merton(
     if not solution.success:
         raise ValueError(f"Merton denklemleri çözülemedi: {solution.message}")
     value, vol = float(solution.x[0]), abs(float(solution.x[1]))
-    _, d2 = _d1_d2(value, vol, debt, rate, years)
+    _, d2 = d1_d2(value, debt, years, rate, vol, 0.0)
     return MertonResult(value, vol, float(d2), float(norm.cdf(-d2)))
 
 
 def latest_debt(items: pd.DataFrame) -> tuple[str, float, float]:
     """Son dönemin kısa ve uzun vadeli finansal borcu (kiralama dahil)."""
-    total = item(items, "Total Debt").dropna()
+    total = column(items, "Total Debt").dropna()
     if total.empty:
         raise ValueError("Toplam borç kalemi yok")
     period = total.index[-1]
-    short = item(items, "Current Debt And Capital Lease Obligation").fillna(
-        item(items, "Current Debt")
+    short = column(items, "Current Debt And Capital Lease Obligation").fillna(
+        column(items, "Current Debt")
     )
     short_value = float(short.get(period, 0.0))
     short_value = 0.0 if math.isnan(short_value) else short_value

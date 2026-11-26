@@ -7,10 +7,9 @@ import datetime as dt
 
 import pandas as pd
 import yfinance as yf
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from bistlab.data.db import FinancialItem, Security, get_engine, init_db
+from bistlab.data.db import FinancialItem, get_engine, get_or_create_security, init_db
 from bistlab.data.prices import to_yahoo_symbol
 
 SOURCE = "yfinance"
@@ -47,17 +46,6 @@ def fetch_financials(ticker: str) -> tuple[list[FinancialRow], str]:
     for statement, table in tables.items():
         rows.extend(to_long(table, statement))
     return rows, str(currency)
-
-
-def get_or_create_security(session: Session, ticker: str) -> Security:
-    """Hisse kaydını bulur; yoksa oluşturur."""
-    code = ticker.strip().upper().removesuffix(".IS")
-    security = session.scalar(select(Security).where(Security.ticker == code))
-    if security is None:
-        security = Security(ticker=code)
-        session.add(security)
-        session.flush()
-    return security
 
 
 def save_financials(

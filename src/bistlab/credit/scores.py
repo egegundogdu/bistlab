@@ -14,6 +14,7 @@ import math
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from bistlab.common import column
 from bistlab.data.db import get_engine
 from bistlab.valuation.report import load_items
 
@@ -79,25 +80,19 @@ def synthetic_rating(coverage: float) -> tuple[str, float]:
     raise ValueError(f"Geçersiz faiz karşılama oranı: {coverage}")
 
 
-def item(df: pd.DataFrame, name: str) -> pd.Series[float]:
-    if name not in df.columns:
-        return pd.Series(math.nan, index=df.index, dtype=float)
-    return df[name].astype(float)
-
-
 def credit_table(items: pd.DataFrame) -> pd.DataFrame:
     """Her dönem için Z'', bölge, faiz karşılama, not ve spread."""
-    working_capital = item(items, "Working Capital").fillna(
-        item(items, "Current Assets") - item(items, "Current Liabilities")
+    working_capital = column(items, "Working Capital").fillna(
+        column(items, "Current Assets") - column(items, "Current Liabilities")
     )
     columns = {
         "wc": working_capital,
-        "re": item(items, "Retained Earnings"),
-        "ebit": item(items, "EBIT"),
-        "ta": item(items, "Total Assets"),
-        "eq": item(items, "Stockholders Equity"),
-        "tl": item(items, "Total Liabilities Net Minority Interest"),
-        "interest": item(items, "Interest Expense").fillna(0.0),
+        "re": column(items, "Retained Earnings"),
+        "ebit": column(items, "EBIT"),
+        "ta": column(items, "Total Assets"),
+        "eq": column(items, "Stockholders Equity"),
+        "tl": column(items, "Total Liabilities Net Minority Interest"),
+        "interest": column(items, "Interest Expense").fillna(0.0),
     }
     data = pd.DataFrame(columns).dropna(subset=["wc", "re", "ebit", "ta", "eq", "tl"])
     rows = []
