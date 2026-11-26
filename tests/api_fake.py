@@ -7,6 +7,7 @@ import datetime as dt
 import numpy as np
 import pandas as pd
 
+from bistlab.data.db import FundHolding
 from bistlab.quality.prices import Bar
 from bistlab.real.view import CPI_CODE, FX_CODES, Points
 
@@ -109,3 +110,40 @@ class FakeSource:
 
     def governance_files(self) -> dict[str, str]:
         return {}
+
+    def fund_holdings(self, code: str) -> list[FundHolding]:
+        day = dt.date(2026, 10, 31)
+        rows = {
+            "IKP": [
+                ("THYAO", "equity_tr", 0.30, "TRY", "TRATHYAO91M5"),
+                ("ASELS", "equity_tr", 0.20, "TRY", "TREASLS00014"),
+                ("NVDA US", "equity_foreign", 0.40, "USD", "US67066G1040"),
+                ("Mevduat", "deposit", 0.10, "TRY", None),
+            ],
+            "KVT": [
+                ("THYAO", "equity_tr", 0.50, "TRY", "TRATHYAO91M5"),
+                ("BIMAS", "equity_tr", 0.50, "TRY", "TREBIMM00018"),
+            ],
+        }
+        if code not in rows:
+            raise KeyError(code)
+        return [
+            FundHolding(
+                fund_id=1,
+                report_date=day,
+                asset=a,
+                asset_type=t,
+                weight=w,
+                market_value=None,
+                currency=c,
+                isin=i,
+            )
+            for a, t, w, c, i in rows[code]
+        ]
+
+    def fund_prices(self, code: str) -> pd.Series[float]:
+        if code != "IKP":
+            return pd.Series(dtype=float)
+        points = self.series["XU100"]
+        index = pd.DatetimeIndex([pd.Timestamp(d) for d, _ in points])
+        return pd.Series([float(c) / 1000 for _, c in points], index=index)

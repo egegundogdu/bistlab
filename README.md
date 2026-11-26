@@ -110,7 +110,7 @@ Tüm seçenekler için her komuta `--help` ekleyin.
 | Fiyat kalitesi | Her seride eksik gün (BIST: XU100 takvimi; yabancı: iş günü boşluğu), bayatlık, şüpheli sıçrama (bölünme oranı, geri dönen tek gün), donuk fiyat, geçici son gün | `python -m bistlab.quality.prices --issues --detail SOL.MC` |
 | Reel / USD görünüm | Nominal, reel (TÜFE) ve USD getiri; TMS 29 FCF'sini bugünkü satın alma gücüne taşıyarak FCF getirisi | `python -m bistlab.real.view THYAO ASELS` |
 | Günlük yedek | launchd ile her gün 21:00 yedek, son 14 yedek saklanır; Docker kapalıysa kaydedilir, 7 gün atlanırsa öz denetimde YD-02 bulgu verir | `./scripts/install_backup_agent.sh 21` |
-| HTTP API (salt okunur) | `/health`, `/quality/prices`, `/real/returns`, `/real/fcf`, `/stress/macro`, `/credit/scores`, `/credit/merton`, `/valuation/multiples`, `/governance/scores`; JSON, OpenAPI belgesi `/docs` | `uv run uvicorn bistlab.api.main:app --reload` |
+| HTTP API (salt okunur) | `/health`, `/quality/prices`, `/real/returns`, `/real/fcf`, `/stress/macro`, `/credit/scores`, `/credit/merton`, `/valuation/multiples`, `/governance/scores`, `/derivatives/option`, `/derivatives/implied-vol`, `/derivatives/futures-hedge`, `/funds/{kod}/xray`; JSON, OpenAPI belgesi `/docs` | `uv run uvicorn bistlab.api.main:app --reload` |
 
 Öne çıkan bulgular:
 
