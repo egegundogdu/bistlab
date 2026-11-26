@@ -7,19 +7,42 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Protocol
 
+import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from bistlab.api import services
-from bistlab.api.schemas import FcfListOut, Health, QualityOut, ReturnsOut, StressOut
+from bistlab.api import core, services
+from bistlab.api.core import CoreSource
+from bistlab.api.schemas import (
+    CreditOut,
+    FcfListOut,
+    GovernanceOut,
+    Health,
+    MertonOut,
+    MultiplesOut,
+    QualityOut,
+    ReturnsOut,
+    StressOut,
+)
 from bistlab.api.services import DataSource, DataUnavailable
 from bistlab.data.db import get_engine
 from bistlab.quality.prices import Bar, load_bars
 from bistlab.real.view import DEFAULT_TICKERS, Points, latest_fcf_inputs, load_macro, load_prices
+from bistlab.valuation.beta import load_closes
+from bistlab.valuation.multiples import FX_SERIES
+from bistlab.valuation.report import load_items
+from bistlab.valuation.run import latest_macro
 
 TICKER = re.compile(r"^[A-Z0-9.]{1,16}$")
+GOVERNANCE_DIR = Path("data/kap")
+
+
+class FullSource(DataSource, CoreSource, Protocol):
+    """API'nin ihtiyaç duyduğu tüm okuma işlemleri."""
 
 
 class DatabaseSource:
@@ -48,17 +71,37 @@ class DatabaseSource:
         with get_engine().connect() as conn:
             return latest_fcf_inputs(conn, ticker)
 
+    def items(self, ticker: str) -> tuple[pd.DataFrame, str]:
+        with Session(get_engine()) as session:
+            return load_items(session, ticker)
 
-def get_source() -> DataSource:
+    def closes(self, ticker: str) -> pd.Series[float]:
+        with Session(get_engine()) as session:
+            return load_closes(session, ticker)
+
+    def latest_fx(self, currency: str) -> float:
+        if currency not in FX_SERIES:
+            raise KeyError(currency)
+        with Session(get_engine()) as session:
+            return float(latest_macro(session, FX_SERIES[currency]))
+
+    def governance_files(self) -> dict[str, str]:
+        return {
+            path.stem.split("_")[0].upper(): path.read_text(encoding="utf-8")
+            for path in sorted(GOVERNANCE_DIR.glob("*_kybf.xls"))
+        }
+
+
+def get_source() -> FullSource:
     return DatabaseSource()
 
 
-Source = Annotated[DataSource, Depends(get_source)]
+Source = Annotated[FullSource, Depends(get_source)]
 Tickers = Annotated[list[str] | None, Query(description="Kodlar; boşsa 8 ana hisse")]
 
 app = FastAPI(
     title="bistlab",
-    version="0.1.0",
+    version="0.2.0",
     description="BIST analiz ve risk platformu — salt okunur API. "
     "Eğitim amaçlıdır; yatırım tavsiyesi değildir.",
 )
@@ -118,3 +161,27 @@ def stress_macro(
         return services.macro_stress(source, clean_tickers(tickers), years, window, dt.date.today())
     except DataUnavailable as error:
         raise unavailable(error) from None
+
+
+@app.get("/credit/scores")
+def credit_scores(source: Source, tickers: Tickers = None) -> CreditOut:
+    return core.credit_scores(source, clean_tickers(tickers))
+
+
+@app.get("/credit/merton")
+def credit_merton(
+    source: Source,
+    tickers: Tickers = None,
+    rate: Annotated[float, Query(ge=0, le=2, description="Yıllık basit TL risksiz faiz")] = 0.40,
+) -> MertonOut:
+    return core.merton(source, clean_tickers(tickers), rate)
+
+
+@app.get("/valuation/multiples")
+def valuation_multiples(source: Source, tickers: Tickers = None) -> MultiplesOut:
+    return core.multiples(source, clean_tickers(tickers))
+
+
+@app.get("/governance/scores")
+def governance_scores(source: Source, detail: bool = False) -> GovernanceOut:
+    return core.governance(source, detail)
