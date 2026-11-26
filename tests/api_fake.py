@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 
 import numpy as np
+import pandas as pd
 
 from bistlab.quality.prices import Bar
 from bistlab.real.view import CPI_CODE, FX_CODES, Points
@@ -66,3 +67,45 @@ class FakeSource:
         if ticker == "ASELS":
             return dt.date(2025, 12, 31), "TRY", 10.0e9, 4.0e9
         return None
+
+    def items(self, ticker: str) -> tuple[pd.DataFrame, str]:
+        periods = pd.DatetimeIndex(["2024-12-31", "2025-12-31"])
+        base = {
+            "Working Capital": [20e9, 25e9],
+            "Retained Earnings": [60e9, 70e9],
+            "Operating Income": [15e9, 18e9],
+            "Total Assets": [200e9, 220e9],
+            "Stockholders Equity": [100e9, 110e9],
+            "Common Stock Equity": [100e9, 110e9],
+            "Total Liabilities Net Minority Interest": [100e9, 110e9],
+            "Interest Expense": [3e9, 4e9],
+            "Total Debt": [40e9, 45e9],
+            "Current Debt": [10e9, 12e9],
+            "Cash And Cash Equivalents": [8e9, 9e9],
+            "Net Income": [12e9, 14e9],
+            "EBITDA": [20e9, 24e9],
+            "Free Cash Flow": [5e9, 6e9],
+            "Ordinary Shares Number": [4e9, 4e9],
+        }
+        if ticker == "ASELS":
+            return pd.DataFrame(base, index=periods), "TRY"
+        if ticker == "THYAO":
+            usd = {k: [v / 40 for v in vals] for k, vals in base.items()}
+            usd["Ordinary Shares Number"] = [1.4e9, 1.4e9]
+            return pd.DataFrame(usd, index=periods), "USD"
+        raise ValueError(f"{ticker}: finansal tablo yok")
+
+    def closes(self, ticker: str) -> pd.Series[float]:
+        points = self.series.get(ticker)
+        if not points:
+            raise ValueError(f"{ticker}: fiyat yok")
+        index = pd.DatetimeIndex([pd.Timestamp(d) for d, _ in points])
+        return pd.Series([float(c) for _, c in points], index=index)
+
+    def latest_fx(self, currency: str) -> float:
+        if currency != "USD":
+            raise KeyError(currency)
+        return float(self.usd[-1][1])
+
+    def governance_files(self) -> dict[str, str]:
+        return {}

@@ -118,3 +118,96 @@ class StressOut(BaseModel):
     fx_shock_out_of_sample: bool
     historical: HistoricalOut
     disclaimer: str = DISCLAIMER
+
+
+class CreditRow(BaseModel):
+    period: dt.date
+    z: float | None
+    zone: str
+    coverage: float | None  # None: faiz gideri yok (sonsuz karşılama)
+    rating: str
+    spread: float
+
+
+class CreditCompany(BaseModel):
+    ticker: str
+    currency: str
+    rows: list[CreditRow]
+
+
+class CreditOut(BaseModel):
+    results: list[CreditCompany]
+    skipped: list[str]
+    note: str = (
+        "Altman Z'' (EM) ve Damodaran sentetik notu (Ocak 2026, USD spread); "
+        "faaliyet kârı Yahoo EBIT'i yerine esas faaliyet kârı."
+    )
+    disclaimer: str = DISCLAIMER
+
+
+class MertonCompany(BaseModel):
+    ticker: str
+    period: str
+    market_cap: float
+    default_point: float
+    equity_vol: float
+    asset_value: float
+    asset_vol: float
+    distance_to_default: float
+    default_probability: float
+
+
+class MertonOut(BaseModel):
+    rate: float
+    results: list[MertonCompany]
+    skipped: list[str]
+    note: str = (
+        "Piyasa değeri = veritabanındaki son kapanış × hisse sayısı; yabancı para borç TCMB "
+        "kuruyla TL'ye çevrilir. CLI canlı Yahoo verisi kullandığı için küçük farklar olabilir. "
+        "PD risk-nötr ve 1 yıllıktır; kredi notu değildir."
+    )
+    disclaimer: str = DISCLAIMER
+
+
+class MultiplesRow(BaseModel):
+    ticker: str
+    currency: str
+    market_cap_try_bn: float | None
+    pe: float | None
+    pb: float | None
+    ev_ebitda: float | None
+    fcf_yield: float | None
+
+
+class MultiplesOut(BaseModel):
+    results: list[MultiplesRow]
+    median: dict[str, float | None]
+    skipped: list[str]
+    note: str = "Son yıllık finansallar; boş değer = zarar ya da negatif payda (anlamsız çarpan)."
+    disclaimer: str = DISCLAIMER
+
+
+class IndicatorOut(BaseModel):
+    section: str
+    name: str
+    score: float | None
+    raw: str
+
+
+class GovernanceCompany(BaseModel):
+    ticker: str
+    sections: dict[str, float]
+    total: float
+    answered: int
+    indicators: list[IndicatorOut] | None = None
+
+
+class GovernanceOut(BaseModel):
+    results: list[GovernanceCompany]
+    skipped: list[str]
+    note: str = (
+        "0-10 ölçeği; SPK ağırlıkları: pay sahipleri %25, kamuyu aydınlatma %25, menfaat "
+        "sahipleri %15, yönetim kurulu %35. Şirket beyanına (KAP KYBF) dayanır, "
+        "derecelendirme notu değildir."
+    )
+    disclaimer: str = DISCLAIMER

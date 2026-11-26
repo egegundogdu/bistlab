@@ -29,3 +29,13 @@ def test_validation_and_unavailable() -> None:
     assert c.get("/real/returns", params={"tickers": ["DROP TABLE"]}).status_code == 422
     assert c.get("/stress/macro", params={"years": 0}).status_code == 422
     assert client(FakeSource(with_macro=False)).get("/real/returns").status_code == 503
+
+
+def test_core_endpoints() -> None:
+    c = client(FakeSource())
+    assert c.get("/credit/scores", params={"tickers": ["ASELS"]}).status_code == 200
+    merton = c.get("/credit/merton", params={"tickers": ["ASELS"], "rate": 0.4})
+    assert merton.status_code == 200 and merton.json()["results"][0]["ticker"] == "ASELS"
+    assert c.get("/credit/merton", params={"rate": 5}).status_code == 422
+    assert c.get("/valuation/multiples", params={"tickers": ["ASELS"]}).status_code == 200
+    assert c.get("/governance/scores").json()["results"] == []
