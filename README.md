@@ -103,10 +103,23 @@ Tüm seçenekler için her komuta `--help` ekleyin.
 - **Denetim izi:** fiyat kayıtlarında kaynak ve çekilme zamanı (`source`, `fetched_at`).
 - **Yedekleme:** `scripts/backup.sh` (pg_dump); geri yükleme testi yapıldı.
 
+## Veri kalitesi, reel görünüm ve operasyon
+
+| Araç | Ne yapar | Komut |
+| --- | --- | --- |
+| Fiyat kalitesi | Her seride eksik gün (BIST: XU100 takvimi; yabancı: iş günü boşluğu), bayatlık, şüpheli sıçrama (bölünme oranı, geri dönen tek gün), donuk fiyat, geçici son gün | `python -m bistlab.quality.prices --issues --detail SOL.MC` |
+| Reel / USD görünüm | Nominal, reel (TÜFE) ve USD getiri; TMS 29 FCF'sini bugünkü satın alma gücüne taşıyarak FCF getirisi | `python -m bistlab.real.view THYAO ASELS` |
+| Günlük yedek | launchd ile her gün 21:00 yedek, son 14 yedek saklanır; Docker kapalıysa kaydedilir, 7 gün atlanırsa öz denetimde YD-02 bulgu verir | `./scripts/install_backup_agent.sh 21` |
+
+Öne çıkan bulgular:
+
+- **2023-01 → 2026-11:** XU100 nominal +%88, reel −%49, USD −%30. İncelenen 8 hisseden yalnız ASELS, TUPRS ve BIMAS reel olarak pozitif.
+- **Ücretsiz veri tuzakları:** Yahoo bir ters bölünmenin düzeltmesini 8 gün erken uyguladı (SOL.MC ×5), işlemi durdurulan hissede son fiyatı 308 işlem günü tekrarladı (sahte sıfır oynaklık), arife yarım günlerini bazı hisselerde atladı. 81 seride: 65 iyi, 16 dikkat, 0 sorunlu.
+
 ## Bilinen sınırlamalar
 
 - **FCF getirisi:** Yahoo'da kira ödemeleri ayrı satır değil; TFRS 16 ile finansmana geçtiği için kiralık filo kullanan havayollarında (PGSUS, THYAO) FCF şişik görünür. PGSUS 2025: %43, borç/kira geri ödemesi düşülünce ~%22.
-- **Zaman uyumsuzluğu:** FCF ve kârlar son yıl sonu (TMS 29, o tarihin satın alma gücü), piyasa değeri bugünün fiyatı; yüksek enflasyonda çarpanlar kayar.
+- **Zaman uyumsuzluğu:** FCF ve kârlar son yıl sonu (TMS 29, o tarihin satın alma gücü), piyasa değeri bugünün fiyatı. Yıl sonu lirası bugünkünden değerli olduğu için düzeltme FCF getirisini *artırır* (Ara 2025 → Eki 2026 katsayı 1,28; FROTO %30 → %38,5). Yüksek FCF getirileri bu uyumsuzluktan kaynaklanmıyor. `python -m bistlab.real.view` iki değeri yan yana gösterir.
 - **Kredi skorları:** faaliyet kârı Yahoo'nun EBIT'i yerine esas faaliyet kârından alınır (EBIT, TMS 29 parasal kaybını içerir; ASELS 2022 karşılaması 0,55 değil 5,64).
 - Fiyat ve finansal tablo verisi yfinance'tan gelir; resmî kaynak değildir. Son işlem gününün verisi kaynak tarafından geri çekilebilir.
 - 2023'ten itibaren TMS 29 (enflasyon muhasebesi) bazı oranları ve tarihsel karşılaştırmaları etkiler.
