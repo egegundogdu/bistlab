@@ -39,3 +39,18 @@ def test_core_endpoints() -> None:
     assert c.get("/credit/merton", params={"rate": 5}).status_code == 422
     assert c.get("/valuation/multiples", params={"tickers": ["ASELS"]}).status_code == 200
     assert c.get("/governance/scores").json()["results"] == []
+
+
+def test_tool_endpoints() -> None:
+    c = client(FakeSource())
+    opt = c.get("/derivatives/option", params={"spot": 100, "strike": 105, "type": "put"})
+    assert opt.status_code == 200 and opt.json()["option"] == "put"
+    assert c.get("/derivatives/option", params={"spot": -1, "strike": 100}).status_code == 422
+    iv = c.get("/derivatives/implied-vol", params={"price": 5, "spot": 100, "strike": 100})
+    assert iv.status_code == 200
+    hedge = c.get(
+        "/derivatives/futures-hedge", params={"tickers": ["THYAO", "ASELS"], "index": "XU100"}
+    )
+    assert hedge.status_code == 200
+    assert c.get("/funds/IKP/xray", params={"compare": "KVT"}).status_code == 200
+    assert c.get("/funds/YOK/xray").status_code == 404

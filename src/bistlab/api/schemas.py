@@ -211,3 +211,104 @@ class GovernanceOut(BaseModel):
         "derecelendirme notu değildir."
     )
     disclaimer: str = DISCLAIMER
+
+
+class GreeksOut(BaseModel):
+    delta: float
+    gamma: float
+    vega: float
+    theta: float
+    rho: float
+
+
+class OptionOut(BaseModel):
+    option: str
+    spot: float
+    strike: float
+    years: float
+    rate: float
+    continuous_rate: float
+    vol: float
+    black_scholes: float
+    greeks: GreeksOut
+    binomial_european: float
+    binomial_american: float
+    monte_carlo: float
+    monte_carlo_std_error: float
+    put_call_parity_gap: float
+    note: str = (
+        "rate yıllık efektif faizdir; modellere ln(1+r) sürekli faiz olarak girer. "
+        "Vega/rho 1 puan, theta 1 takvim günü içindir. Parite farkı ≈ 0 olmalı."
+    )
+    disclaimer: str = DISCLAIMER
+
+
+class ImpliedVolOut(BaseModel):
+    implied_vol: float
+    price: float
+    option: str
+
+
+class HedgeOut(BaseModel):
+    tickers: list[str]
+    index: str
+    value: float
+    spot: float
+    days: int
+    futures_price: float
+    basis_pct: float
+    implied_rate: float
+    hedge_ratio: float
+    notional: float
+    contracts: float | None
+    unhedged_vol: float
+    hedged_vol: float
+    risk_reduction: float
+    note: str = (
+        "Vadeli fiyat teorik (taşıma maliyeti); hedge oranı günlük getirilerle minimum varyans "
+        "betası. Hedge sonrası kalan risk şirkete özgü risktir."
+    )
+    disclaimer: str = DISCLAIMER
+
+
+class WeightOut(BaseModel):
+    name: str
+    weight: float
+
+
+class FundRiskOut(BaseModel):
+    years: int
+    annual_return: float
+    annual_vol: float
+    max_drawdown: float
+    var_95: float
+    cvar_95: float
+    beta_xu100: float | None
+
+
+class OverlapRow(BaseModel):
+    asset: str
+    first: float
+    second: float
+
+
+class FundOverlapOut(BaseModel):
+    other: str
+    overlap: float
+    common: list[OverlapRow]
+
+
+class FundXrayOut(BaseModel):
+    code: str
+    report_date: dt.date
+    holdings: int
+    asset_types: list[WeightOut]
+    currencies: list[WeightOut]
+    countries: list[WeightOut]
+    non_try_share: float
+    top10: float
+    hhi: float
+    effective_n: float
+    risk: FundRiskOut | None
+    overlap: FundOverlapOut | None
+    disclaimer: str = DISCLAIMER

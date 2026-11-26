@@ -8,28 +8,37 @@ from __future__ import annotations
 import datetime as dt
 import re
 from pathlib import Path
-from typing import Annotated, Protocol
+from typing import Annotated, Literal, Protocol
 
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import text
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
-from bistlab.api import core, services
+from bistlab.api import core, services, tools
 from bistlab.api.core import CoreSource
 from bistlab.api.schemas import (
     CreditOut,
     FcfListOut,
+    FundXrayOut,
     GovernanceOut,
     Health,
+    HedgeOut,
+    ImpliedVolOut,
     MertonOut,
     MultiplesOut,
+    OptionOut,
     QualityOut,
     ReturnsOut,
     StressOut,
 )
 from bistlab.api.services import DataSource, DataUnavailable
-from bistlab.data.db import get_engine
+from bistlab.api.tools import ToolSource
+from bistlab.data.db import FundHolding, get_engine
+from bistlab.funds.holding_prices import latest_holdings
+from bistlab.funds.replica import load_fund_prices
+from bistlab.funds.xray import to_series
 from bistlab.quality.prices import Bar, load_bars
 from bistlab.real.view import DEFAULT_TICKERS, Points, latest_fcf_inputs, load_macro, load_prices
 from bistlab.valuation.beta import load_closes
@@ -41,7 +50,7 @@ TICKER = re.compile(r"^[A-Z0-9.]{1,16}$")
 GOVERNANCE_DIR = Path("data/kap")
 
 
-class FullSource(DataSource, CoreSource, Protocol):
+class FullSource(DataSource, CoreSource, ToolSource, Protocol):
     """API'nin ihtiyaç duyduğu tüm okuma işlemleri."""
 
 
@@ -85,6 +94,17 @@ class DatabaseSource:
         with Session(get_engine()) as session:
             return float(latest_macro(session, FX_SERIES[currency]))
 
+    def fund_holdings(self, code: str) -> list[FundHolding]:
+        with Session(get_engine()) as session:
+            try:
+                return latest_holdings(session, code)
+            except NoResultFound:
+                raise KeyError(code) from None
+
+    def fund_prices(self, code: str) -> pd.Series[float]:
+        with Session(get_engine()) as session:
+            return to_series(load_fund_prices(session, code))
+
     def governance_files(self) -> dict[str, str]:
         return {
             path.stem.split("_")[0].upper(): path.read_text(encoding="utf-8")
@@ -101,7 +121,7 @@ Tickers = Annotated[list[str] | None, Query(description="Kodlar; boşsa 8 ana hi
 
 app = FastAPI(
     title="bistlab",
-    version="0.2.0",
+    version="0.3.0",
     description="BIST analiz ve risk platformu — salt okunur API. "
     "Eğitim amaçlıdır; yatırım tavsiyesi değildir.",
 )
@@ -185,3 +205,79 @@ def valuation_multiples(source: Source, tickers: Tickers = None) -> MultiplesOut
 @app.get("/governance/scores")
 def governance_scores(source: Source, detail: bool = False) -> GovernanceOut:
     return core.governance(source, detail)
+
+
+OptionType = Annotated[Literal["call", "put"], Query(alias="type")]
+Positive = Annotated[float, Query(gt=0)]
+Days = Annotated[int, Query(ge=1, le=3650, description="Vadeye kalan takvim günü")]
+Rate = Annotated[float, Query(ge=-0.5, le=3, description="Yıllık efektif faiz")]
+Yield = Annotated[float, Query(ge=0, le=1)]
+
+
+@app.get("/derivatives/option")
+def derivatives_option(
+    spot: Positive,
+    strike: Positive,
+    days: Days = 30,
+    rate: Rate = 0.40,
+    vol: Annotated[float, Query(gt=0, le=5)] = 0.35,
+    option: OptionType = "call",
+    dividend_yield: Yield = 0.0,
+) -> OptionOut:
+    try:
+        return tools.option_report(spot, strike, days, rate, vol, option, dividend_yield)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
+@app.get("/derivatives/implied-vol")
+def derivatives_implied_vol(
+    price: Positive,
+    spot: Positive,
+    strike: Positive,
+    days: Days = 30,
+    rate: Rate = 0.40,
+    option: OptionType = "call",
+    dividend_yield: Yield = 0.0,
+) -> ImpliedVolOut:
+    try:
+        return tools.implied_vol(price, spot, strike, days, rate, option, dividend_yield)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
+@app.get("/derivatives/futures-hedge")
+def derivatives_futures_hedge(
+    source: Source,
+    tickers: Tickers = None,
+    index: str = "XU030",
+    value: Positive = 1_000_000,
+    days: Days = 60,
+    rate: Rate = 0.40,
+    dividend_yield: Yield = 0.0,
+    years: Annotated[int, Query(ge=1, le=5)] = 1,
+    multiplier: Annotated[float | None, Query(gt=0, description="VİOP kontrat çarpanı")] = None,
+) -> HedgeOut:
+    codes = clean_tickers(tickers)
+    index_code = clean_tickers([index])[0]
+    try:
+        return tools.futures_hedge(
+            source, codes, index_code, value, days, rate, dividend_yield, years, multiplier
+        )
+    except (ValueError, KeyError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
+@app.get("/funds/{code}/xray")
+def funds_xray(
+    source: Source,
+    code: str,
+    years: Annotated[int, Query(ge=1, le=10)] = 2,
+    compare: str | None = None,
+) -> FundXrayOut:
+    fund = clean_tickers([code])[0]
+    other = clean_tickers([compare])[0] if compare else None
+    try:
+        return tools.fund_xray(source, fund, years, other)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"Fon raporu yok: {error}") from None
