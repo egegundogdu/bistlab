@@ -105,6 +105,9 @@ Tüm seçenekler için her komuta `--help` ekleyin.
 
 ## Bilinen sınırlamalar
 
+- **FCF getirisi:** Yahoo'da kira ödemeleri ayrı satır değil; TFRS 16 ile finansmana geçtiği için kiralık filo kullanan havayollarında (PGSUS, THYAO) FCF şişik görünür. PGSUS 2025: %43, borç/kira geri ödemesi düşülünce ~%22.
+- **Zaman uyumsuzluğu:** FCF ve kârlar son yıl sonu (TMS 29, o tarihin satın alma gücü), piyasa değeri bugünün fiyatı; yüksek enflasyonda çarpanlar kayar.
+- **Kredi skorları:** faaliyet kârı Yahoo'nun EBIT'i yerine esas faaliyet kârından alınır (EBIT, TMS 29 parasal kaybını içerir; ASELS 2022 karşılaması 0,55 değil 5,64).
 - Fiyat ve finansal tablo verisi yfinance'tan gelir; resmî kaynak değildir. Son işlem gününün verisi kaynak tarafından geri çekilebilir.
 - 2023'ten itibaren TMS 29 (enflasyon muhasebesi) bazı oranları ve tarihsel karşılaştırmaları etkiler.
 - Merton modeli normal dağılım varsayar; mutlak temerrüt olasılıkları gerçekçi değildir, sıralama için kullanılmalıdır. Damodaran not tablosu ABD faiz ortamına göre kalibre edilmiştir.

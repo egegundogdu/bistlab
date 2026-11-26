@@ -65,6 +65,15 @@ def altman_zone(z: float) -> str:
     return "gri"
 
 
+def operating_profit(items: pd.DataFrame) -> pd.Series[float]:
+    """Esas faaliyet kârı; yoksa Yahoo'nun EBIT'i.
+
+    Yahoo EBIT'i vergi öncesi kâr + faizden türetir. TMS 29'da parasal pozisyon kaybı ve
+    kur zararları buna girer (ASELS 2022: EBIT 1,1 mr TL, esas faaliyet kârı 11,5 mr TL).
+    """
+    return column(items, "Operating Income").fillna(column(items, "EBIT"))
+
+
 def interest_coverage(ebit: float, interest_expense: float) -> float:
     """FVÖK / faiz gideri. Faiz gideri yoksa sonsuz."""
     interest = abs(interest_expense)
@@ -88,7 +97,7 @@ def credit_table(items: pd.DataFrame) -> pd.DataFrame:
     columns = {
         "wc": working_capital,
         "re": column(items, "Retained Earnings"),
-        "ebit": column(items, "EBIT"),
+        "ebit": operating_profit(items),
         "ta": column(items, "Total Assets"),
         "eq": column(items, "Stockholders Equity"),
         "tl": column(items, "Total Liabilities Net Minority Interest"),
