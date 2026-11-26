@@ -10,6 +10,7 @@ import pandas as pd
 from bistlab.data.db import FundHolding
 from bistlab.quality.prices import Bar
 from bistlab.real.view import CPI_CODE, FX_CODES, Points
+from bistlab.valuation.assumptions import Assumptions
 
 TODAY = dt.date(2026, 11, 24)
 
@@ -150,3 +151,24 @@ class FakeSource:
 
     def securities(self) -> list[tuple[str, dt.date, float]]:
         return [(t, pts[-1][0], float(pts[-1][1])) for t, pts in self.series.items()]
+
+    def assumptions(self, ticker: str) -> Assumptions:
+        if ticker not in ("ASELS", "THYAO"):
+            raise FileNotFoundError(ticker)
+        usd = ticker == "THYAO"
+        return Assumptions(
+            ticker=ticker,
+            currency="USD" if usd else "TRY",
+            usd_risk_free=0.0418,
+            equity_risk_premium=0.0889,
+            us_inflation=0.025,
+            local_inflation=0.25,
+            beta_override=None,
+            use_blume=True,
+            pre_tax_cost_of_debt=0.07 if usd else 0.40,
+            tax_rate=0.25,
+            base_fcf_years=2,
+            growth=(0.07, 0.06, 0.06, 0.05, 0.05),
+            terminal_real_growth=0.02,
+            lease_adjusted=False,
+        )

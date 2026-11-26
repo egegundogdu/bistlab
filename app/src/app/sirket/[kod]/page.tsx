@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DcfCalculator } from "@/components/DcfCalculator";
 import { PriceChart } from "@/components/PriceChart";
-import { get, type Credit, type Governance, type Merton, type Multiples, type Prices, type Returns } from "@/lib/api";
+import { get, type Credit, type Dcf, type Governance, type Merton, type Multiples, type Prices, type Returns } from "@/lib/api";
 import { date, num, pct, tone } from "@/lib/format";
 
 const RANGES: Record<string, number> = { "1A": 31, "3A": 92, "1Y": 366, "3Y": 1100 };
@@ -41,13 +42,14 @@ export default async function Company({
   const range = aralik && aralik in RANGES ? aralik : "1Y";
   const q = `tickers=${encodeURIComponent(code)}`;
 
-  const [prices, multiples, credit, merton, governance, returns] = await Promise.all([
+  const [prices, multiples, credit, merton, governance, returns, dcf] = await Promise.all([
     get<Prices>(`/prices/${encodeURIComponent(code)}?since=${since(range)}`),
     get<Multiples>(`/valuation/multiples?${q}`),
     get<Credit>(`/credit/scores?${q}`),
     get<Merton>(`/credit/merton?${q}`),
     get<Governance>("/governance/scores"),
     get<Returns>(`/real/returns?${q}`),
+    get<Dcf>(`/valuation/dcf/${encodeURIComponent(code)}`),
   ]);
 
   if (prices === null) {
@@ -118,6 +120,16 @@ export default async function Company({
       </section>
 
       <section className="grid">
+        {dcf ? (
+          <DcfCalculator initial={dcf} />
+        ) : (
+          <div className="card">
+            <div className="card-head"><h2>DCF hesaplayıcı</h2><span className="tag">SPL Düzey 3 · Değerleme</span></div>
+            <p className="note">
+              Bu şirket için varsayım dosyası yok (assumptions/{code}.toml). Şimdilik THYAO ve ASELS hazır.
+            </p>
+          </div>
+        )}
         <div className="card">
           <div className="card-head"><h2>Kredi riski</h2><span className="tag">Kredi Derecelendirme</span></div>
           {latestCredit ? (

@@ -13,6 +13,7 @@ from bistlab.api.schemas import (
     CreditCompany,
     CreditOut,
     CreditRow,
+    DcfOut,
     GovernanceCompany,
     GovernanceOut,
     IndicatorOut,
@@ -25,7 +26,9 @@ from bistlab.credit.merton import default_point, latest_debt, solve_merton
 from bistlab.credit.scores import credit_table
 from bistlab.governance.scorecard import read_form, score_form, section_scores, total_score
 from bistlab.portfolio.risk import annualized_volatility
+from bistlab.valuation.assumptions import Assumptions
 from bistlab.valuation.multiples import compute_multiples
+from bistlab.valuation.pipeline import valuate
 from bistlab.valuation.run import latest
 
 TRADING_DAYS = 253
@@ -39,6 +42,8 @@ class CoreSource(Protocol):
     def latest_fx(self, currency: str) -> float: ...
 
     def governance_files(self) -> dict[str, str]: ...
+
+    def assumptions(self, ticker: str) -> Assumptions: ...
 
 
 def finite(value: float) -> float | None:
@@ -175,3 +180,53 @@ def governance(source: CoreSource, detail: bool = False) -> GovernanceOut:
         )
     results.sort(key=lambda c: c.total, reverse=True)
     return GovernanceOut(results=results, skipped=skipped)
+
+
+def dcf(
+    source: CoreSource,
+    ticker: str,
+    wacc: float | None = None,
+    terminal_growth: float | None = None,
+) -> DcfOut:
+    """Varsayım dosyası yoksa KeyError, hesap geçersizse ValueError."""
+    try:
+        a = source.assumptions(ticker)
+    except (FileNotFoundError, OSError) as error:
+        raise KeyError(ticker) from error
+    items, currency = source.items(ticker)
+    v = valuate(
+        a,
+        items,
+        currency,
+        source.closes(ticker),
+        source.closes("XU100"),
+        source.latest_fx("USD"),
+        wacc,
+        terminal_growth,
+    )
+    return DcfOut(
+        ticker=v.ticker,
+        currency=v.currency,
+        raw_beta=v.raw_beta,
+        beta=v.beta,
+        beta_note=v.beta_note,
+        cost_of_equity=v.cost_of_equity,
+        model_wacc=v.model_wacc,
+        model_terminal_growth=v.model_terminal_growth,
+        wacc=v.wacc,
+        terminal_growth=v.terminal_growth,
+        base_fcf=v.base_fcf,
+        lease_adjusted=v.lease_adjusted,
+        growth=list(v.growth),
+        enterprise_value=v.enterprise_value,
+        net_debt=v.net_debt,
+        equity_value=v.equity_value,
+        terminal_share=v.terminal_share,
+        per_share_try=v.per_share_try,
+        price_try=v.price_try,
+        upside=v.upside,
+        implied_growth=v.implied_growth,
+        sensitivity_rates=v.sensitivity_rates,
+        sensitivity_growths=v.sensitivity_growths,
+        sensitivity=v.sensitivity,
+    )

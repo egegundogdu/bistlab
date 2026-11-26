@@ -71,3 +71,12 @@ def test_cors_allows_local_frontend_only() -> None:
     assert ok.headers.get("access-control-allow-origin") == "http://localhost:3000"
     other = c.get("/health", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in other.headers
+
+
+def test_dcf_endpoint() -> None:
+    c = client(FakeSource())
+    ok = c.get("/valuation/dcf/asels")
+    assert ok.status_code == 200 and ok.json()["ticker"] == "ASELS"
+    assert c.get("/valuation/dcf/BIMAS").status_code == 404
+    bad = c.get("/valuation/dcf/ASELS", params={"wacc": 0.1, "terminal_growth": 0.2})
+    assert bad.status_code == 422

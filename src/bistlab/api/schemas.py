@@ -332,3 +332,35 @@ class PricePoint(BaseModel):
 class PricesOut(BaseModel):
     ticker: str
     points: list[PricePoint]
+
+
+class DcfOut(BaseModel):
+    ticker: str
+    currency: str
+    raw_beta: float
+    beta: float
+    beta_note: str
+    cost_of_equity: float
+    model_wacc: float
+    model_terminal_growth: float
+    wacc: float
+    terminal_growth: float
+    base_fcf: float
+    lease_adjusted: bool
+    growth: list[float]
+    enterprise_value: float
+    net_debt: float
+    equity_value: float
+    terminal_share: float
+    per_share_try: float
+    price_try: float
+    upside: float
+    implied_growth: float | None
+    sensitivity_rates: list[float]
+    sensitivity_growths: list[float]
+    sensitivity: list[list[float]]
+    note: str = (
+        "Varsayımlar assumptions/<KOD>.toml dosyasından; tutarlar raporlama para biriminde, "
+        "hisse başı değer TL. Ters DCF: bugünkü fiyatın ima ettiği sabit yıllık FCF büyümesi."
+    )
+    disclaimer: str = DISCLAIMER
