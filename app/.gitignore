@@ -3,3 +3,6 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 .env*.local
+
+# kök .gitignore Python şablonundaki lib/ kuralını arayüz için geri al
+!src/lib/
