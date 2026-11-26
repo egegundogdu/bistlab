@@ -12,6 +12,10 @@ Sıçramalar ikiye ayrılır. "Şüpheli" olanlar durumu etkiler: oran bir böl�
 katsayısına (×2, ×3, ×5, ×10 ... ya da tersi) ±%1,5 yakınsa ya da en az %50'lik bir
 sıçramadan sonra fiyat 3 işlem günü içinde eski seviyesine dönüyorsa (tek günlük hatalı
 fiyat). Diğerleri oynaklıktır; sadece sayılır.
+
+Donuk fiyat: art arda FLAT_RUN işlem günü aynı kapanış. Genelde işlem durdurma ya da
+sağlayıcının son fiyatı tekrar yazmasıdır; getiri ve risk hesaplarında sahte "sıfır
+oynaklık" yaratır (SOL.MC: 2024–2025 boyunca 1,598).
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ SPLIT_TOLERANCE = 0.015
 SPIKE_MIN = 0.5
 SPIKE_WINDOW = 3
 SPIKE_RETURN = 0.10
+FLAT_RUN = 10
 BIST_SHARE = 0.99
 FOREIGN_GAP_BUSDAYS = 3
 STALE_LIMIT = 3
@@ -60,6 +65,7 @@ class SeriesQuality:
     stale: int
     jumps: list[tuple[dt.date, float]]
     suspicious: list[tuple[dt.date, float, str]]
+    flat_run: int
     bad_closes: int
     provisional: bool
 
@@ -72,7 +78,7 @@ class SeriesQuality:
     def status(self) -> str:
         if self.bad_closes or self.stale > STALE_LIMIT or self.coverage < MIN_COVERAGE:
             return "Sorunlu"
-        if self.suspicious or self.missing or self.stale:
+        if self.suspicious or self.missing or self.stale or self.flat_run >= FLAT_RUN:
             return "Dikkat"
         return "İyi"
 
@@ -140,6 +146,17 @@ def suspicious_jumps(bars: list[Bar]) -> list[tuple[dt.date, float, str]]:
     return found
 
 
+def longest_flat_run(bars: list[Bar]) -> int:
+    """Art arda aynı kapanışın en uzun tekrar sayısı (1 = hiç tekrar yok)."""
+    longest = current = 0
+    previous: float | None = None
+    for _, close in valid_points(bars):
+        current = current + 1 if close == previous else 1
+        longest = max(longest, current)
+        previous = close
+    return longest
+
+
 def is_bist(ticker: str, dates: list[dt.date], calendar: set[dt.date]) -> bool:
     if "." in ticker or not dates:
         return False
@@ -191,6 +208,7 @@ def assess(ticker: str, bars: list[Bar], calendar: list[dt.date]) -> SeriesQuali
         stale=stale,
         jumps=find_jumps(bars),
         suspicious=suspicious_jumps(bars),
+        flat_run=longest_flat_run(bars),
         bad_closes=sum(not valid_close(bar.close) for bar in bars),
         provisional=is_provisional(bars[-1]),
     )
@@ -220,7 +238,7 @@ def load_bars() -> dict[str, list[Bar]]:
 def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
     header = (
         f"{'Kod':<10}{'Piyasa':<9}{'İlk':<12}{'Son':<12}{'Gün':>6}{'Kapsam':>9}"
-        f"{'Eksik':>7}{'Bayat':>7}{'Sıçrama':>9}{'Şüpheli':>9}{'Geçici':>8}  Durum"
+        f"{'Eksik':>7}{'Bayat':>7}{'Sıçrama':>9}{'Şüpheli':>9}{'Donuk':>7}{'Geçici':>8}  Durum"
     )
     lines = [header]
     for q in results:
@@ -229,7 +247,7 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
         lines.append(
             f"{q.ticker:<10}{q.market:<9}{q.first.isoformat():<12}{q.last.isoformat():<12}"
             f"{q.bars:>6}{q.coverage:>9.1%}{len(q.missing):>7}{q.stale:>7}"
-            f"{len(q.jumps):>9}{len(q.suspicious):>9}"
+            f"{len(q.jumps):>9}{len(q.suspicious):>9}{q.flat_run:>7}"
             f"{'evet' if q.provisional else '':>8}  {q.status}"
         )
     counts = {status: sum(q.status == status for q in results) for status in STATUS_ORDER}
@@ -242,6 +260,7 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
     lines.append(
         f"Takvim: {CALENDAR_TICKER}. Sıçrama: günlük ±{JUMP_THRESHOLD:.0%}; şüpheli: bölünme "
         "oranı ya da 3 günde geri dönen ≥%50 sıçrama. "
+        f"Donuk: en uzun aynı kapanış serisi (≥ {FLAT_RUN} dikkat). "
         f"Sorunlu: bayat > {STALE_LIMIT} gün, kapsam < {MIN_COVERAGE:.0%} "
         "ya da geçersiz kapanış."
     )
@@ -257,6 +276,7 @@ def render_detail(q: SeriesQuality) -> str:
     )
     for day, change, reason in q.suspicious:
         lines.append(f"  Şüpheli {day.isoformat()}: {change:+.1%} ({reason})")
+    lines.append(f"  En uzun donuk fiyat serisi: {q.flat_run} işlem günü")
     others = len(q.jumps) - len(q.suspicious)
     lines.append(f"  Diğer sıçramalar (oynaklık, ±{JUMP_THRESHOLD:.0%} üstü): {others}")
     state = "geçici" if q.provisional else "doğrulanmış"

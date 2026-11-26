@@ -9,6 +9,7 @@ from bistlab.quality.prices import (
     find_jumps,
     is_bist,
     is_provisional,
+    longest_flat_run,
     split_like,
     suspicious_jumps,
 )
@@ -19,7 +20,7 @@ UTC = dt.UTC
 
 def bars(days: list[dt.date], close: float = 10.0) -> list[Bar]:
     fetched = dt.datetime.combine(days[-1] + dt.timedelta(days=1), dt.time(9), UTC)
-    return [Bar(day, close, fetched) for day in days]
+    return [Bar(day, close + 0.01 * i, fetched) for i, day in enumerate(days)]
 
 
 def test_provisional_when_fetched_same_local_day_or_missing() -> None:
@@ -102,3 +103,9 @@ def test_suspicious_jumps_split_and_round_trip() -> None:
     found = suspicious_jumps(closes([10, 10, 17, 10.5, 10, 10]))
     assert [(day, reason) for day, _, reason in found] == [(D(2026, 1, 7), "geri dönen sıçrama")]
     assert suspicious_jumps(closes([10, 13, 9, 12, 8.5, 11])) == []
+
+
+def test_longest_flat_run() -> None:
+    assert longest_flat_run(closes([10, 11, 12, 13, 14, 15])) == 1
+    assert longest_flat_run(closes([10, 10, 10, 11, 11, 12])) == 3
+    assert longest_flat_run(closes([10, 10, 10, 10, 10, 10])) == 6
