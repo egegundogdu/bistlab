@@ -4,6 +4,7 @@ import { get, type Securities } from "@/lib/api";
 
 const LINKS = [
   { href: "/sirket/THYAO", label: "Şirket" },
+  { href: "/opsiyon", label: "Opsiyon" },
   { href: "/docs", label: "API", external: true },
 ];
 
