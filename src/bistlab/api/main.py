@@ -225,7 +225,7 @@ def credit_merton(
 
 @app.get("/valuation/multiples")
 def valuation_multiples(source: Source, tickers: Tickers = None) -> MultiplesOut:
-    return core.multiples(source, clean_tickers(tickers))
+    return core.multiples(source, clean_tickers(tickers), universe=clean_tickers(None))
 
 
 @app.get("/governance/scores")

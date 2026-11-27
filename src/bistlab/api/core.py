@@ -121,32 +121,37 @@ def merton(source: CoreSource, tickers: list[str], rate: float) -> MertonOut:
     return MertonOut(rate=rate, results=results, skipped=skipped)
 
 
-def multiples(source: CoreSource, tickers: list[str]) -> MultiplesOut:
-    results: list[MultiplesRow] = []
-    skipped: list[str] = []
-    for ticker in tickers:
+def multiples(
+    source: CoreSource, tickers: list[str], universe: list[str] | None = None
+) -> MultiplesOut:
+    """Medyan akran evreninden (universe); tickers yalnızca satırları süzer."""
+    peers = universe or tickers
+    rows: dict[str, MultiplesRow] = {}
+    failed: set[str] = set()
+    for ticker in dict.fromkeys([*peers, *tickers]):
         try:
             items, currency = source.items(ticker)
             price = float(source.closes(ticker).iloc[-1])
             fx = 1.0 if currency == "TRY" else source.latest_fx(currency)
             m = compute_multiples(ticker, currency, price, fx, items)
         except (ValueError, KeyError, IndexError):
-            skipped.append(ticker)
+            failed.add(ticker)
             continue
-        results.append(
-            MultiplesRow(
-                ticker=m.ticker,
-                currency=m.currency,
-                market_cap_try_bn=finite(m.market_cap_try_bn),
-                pe=finite(m.pe),
-                pb=finite(m.pb),
-                ev_ebitda=finite(m.ev_ebitda),
-                fcf_yield=finite(m.fcf_yield),
-            )
+        rows[ticker] = MultiplesRow(
+            ticker=m.ticker,
+            currency=m.currency,
+            market_cap_try_bn=finite(m.market_cap_try_bn),
+            pe=finite(m.pe),
+            pb=finite(m.pb),
+            ev_ebitda=finite(m.ev_ebitda),
+            fcf_yield=finite(m.fcf_yield),
         )
+    results = [rows[t] for t in tickers if t in rows]
+    skipped = [t for t in tickers if t in failed]
+    peer_rows = [rows[t] for t in peers if t in rows]
     median: dict[str, float | None] = {}
     for field in ("pe", "pb", "ev_ebitda", "fcf_yield"):
-        values = [v for r in results if (v := getattr(r, field)) is not None]
+        values = [v for r in peer_rows if (v := getattr(r, field)) is not None]
         median[field] = float(np.median(values)) if values else None
     return MultiplesOut(results=results, median=median, skipped=skipped)
 
