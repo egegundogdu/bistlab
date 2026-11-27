@@ -135,3 +135,23 @@ export type Hedge = {
   hedged_vol: number;
   risk_reduction: number;
 };
+
+export type PriceQuality = {
+  summary: Record<string, number>;
+  provisional: number;
+  series: {
+    ticker: string;
+    market: string;
+    first: string;
+    last: string;
+    bars: number;
+    coverage: number;
+    missing: number;
+    stale: number;
+    jumps: number;
+    suspicious: number;
+    flat_run: number;
+    provisional: boolean;
+    status: string;
+  }[];
+};
