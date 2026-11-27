@@ -19,6 +19,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from bistlab.api import core, services, tools
+from bistlab.api import portfolio as portfolio_api
 from bistlab.api.core import CoreSource
 from bistlab.api.schemas import (
     CreditOut,
@@ -32,6 +33,7 @@ from bistlab.api.schemas import (
     MertonOut,
     MultiplesOut,
     OptionOut,
+    PortfolioOut,
     PricesOut,
     QualityOut,
     ReturnsOut,
@@ -339,5 +341,31 @@ def valuation_dcf(
         raise HTTPException(
             status_code=404, detail=f"{ticker} için varsayım dosyası ya da veri yok"
         ) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+
+
+@app.get("/portfolio/risk")
+def portfolio_risk(
+    source: Source,
+    tickers: Tickers = None,
+    weights: Annotated[
+        list[float] | None, Query(description="tickers sırasıyla ağırlıklar; boşsa eşit")
+    ] = None,
+    years: Annotated[float, Query(gt=0, le=10)] = 2.0,
+    risk_free: Rate = 0.40,
+    level: Annotated[float, Query(gt=0.5, lt=1)] = 0.95,
+    max_weight: Annotated[float, Query(gt=0, le=1)] = 1.0,
+) -> PortfolioOut:
+    try:
+        return portfolio_api.portfolio_risk(
+            source,
+            clean_tickers(tickers),
+            weights,
+            years=years,
+            risk_free=risk_free,
+            level=level,
+            max_weight=max_weight,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None

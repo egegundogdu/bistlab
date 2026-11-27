@@ -364,3 +364,42 @@ class DcfOut(BaseModel):
         "hisse başı değer TL. Ters DCF: bugünkü fiyatın ima ettiği sabit yıllık FCF büyümesi."
     )
     disclaimer: str = DISCLAIMER
+
+
+class FrontierPoint(BaseModel):
+    weights: list[float]
+    expected_return: float
+    volatility: float
+    sharpe: float
+
+
+class PortfolioOut(BaseModel):
+    """Gerçekleşen (günlük seriden) ve beklenen (μ, Σ) ölçüler ayrı tutulur."""
+
+    tickers: list[str]
+    skipped: list[str]
+    start: str
+    end: str
+    observations: int
+    risk_free: float
+    level: float
+    weights: list[float]
+    annual_return: float
+    volatility: float
+    sharpe: float
+    max_drawdown: float
+    var_historical: float
+    var_parametric: float
+    cvar: float
+    asset_return: list[float]
+    asset_volatility: list[float]
+    correlation: list[list[float]]
+    current: FrontierPoint
+    min_variance: FrontierPoint
+    max_sharpe: FrontierPoint
+    frontier: list[FrontierPoint]
+    note: str = (
+        "Gerçekleşen ölçüler günlük getirilerden; beklenen getiri μ = aritmetik ortalama × 252. "
+        "VaR/CVaR günlük kayıp (pozitif), maks. düşüş negatif. Açığa satış yok. "
+        "Geçmiş, geleceğin garantisi değildir."
+    )
