@@ -115,7 +115,7 @@ export default async function Company({
               <div className="stat"><dt>Medyan F/K (8 şirket)</dt><dd className="mono">{num(multiples?.median.pe ?? null, 1)}</dd></div>
             </dl>
           ) : <p className="note">Finansal tablo yok (endeks ya da kapsam dışı).</p>}
-          <p className="note">Son yıllık finansallar; boş = zarar ya da negatif payda.</p>
+          <p className="note">Son yıllık finansallar (son 12 ay değil), raporlama para biriminde; boş = zarar ya da negatif payda.</p>
         </div>
       </section>
 

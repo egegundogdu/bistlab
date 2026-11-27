@@ -32,3 +32,11 @@ def test_multiples_and_median() -> None:
 def test_governance_without_files_is_empty() -> None:
     out = core.governance(FakeSource())
     assert out.results == [] and out.skipped == []
+
+
+def test_multiples_median_uses_universe() -> None:
+    """?tickers=THYAO çağrısında medyan tek şirkete değil akran evrenine ait olmalı."""
+    full = core.multiples(FakeSource(), ["ASELS", "THYAO"])
+    one = core.multiples(FakeSource(), ["THYAO"], universe=["ASELS", "THYAO"])
+    assert [r.ticker for r in one.results] == ["THYAO"]
+    assert one.median == full.median
