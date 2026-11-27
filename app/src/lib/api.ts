@@ -97,3 +97,41 @@ export type Dcf = {
   sensitivity_growths: number[];
   sensitivity: number[][];
 };
+
+export type Greeks = { delta: number; gamma: number; vega: number; theta: number; rho: number };
+
+export type OptionReport = {
+  option: string;
+  spot: number;
+  strike: number;
+  years: number;
+  rate: number;
+  continuous_rate: number;
+  vol: number;
+  black_scholes: number;
+  greeks: Greeks;
+  binomial_european: number;
+  binomial_american: number;
+  monte_carlo: number;
+  monte_carlo_std_error: number;
+  put_call_parity_gap: number;
+};
+
+export type ImpliedVol = { implied_vol: number; price: number; option: string };
+
+export type Hedge = {
+  tickers: string[];
+  index: string;
+  value: number;
+  spot: number;
+  days: number;
+  futures_price: number;
+  basis_pct: number;
+  implied_rate: number;
+  hedge_ratio: number;
+  notional: number;
+  contracts: number | null;
+  unhedged_vol: number;
+  hedged_vol: number;
+  risk_reduction: number;
+};
