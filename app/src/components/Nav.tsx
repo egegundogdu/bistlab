@@ -6,6 +6,7 @@ const LINKS = [
   { href: "/sirket/THYAO", label: "Şirket" },
   { href: "/opsiyon", label: "Opsiyon" },
   { href: "/tarayici", label: "Tarayıcı" },
+  { href: "/portfoy", label: "Portföy" },
   { href: "/docs", label: "API", external: true },
 ];
 

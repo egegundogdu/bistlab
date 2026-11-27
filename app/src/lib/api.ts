@@ -155,3 +155,36 @@ export type PriceQuality = {
     status: string;
   }[];
 };
+
+export type FrontierPoint = {
+  weights: number[];
+  expected_return: number;
+  volatility: number;
+  sharpe: number;
+};
+
+export type PortfolioRisk = {
+  tickers: string[];
+  skipped: string[];
+  start: string;
+  end: string;
+  observations: number;
+  risk_free: number;
+  level: number;
+  weights: number[];
+  annual_return: number;
+  volatility: number;
+  sharpe: number;
+  max_drawdown: number;
+  var_historical: number;
+  var_parametric: number;
+  cvar: number;
+  asset_return: number[];
+  asset_volatility: number[];
+  correlation: number[][];
+  current: FrontierPoint;
+  min_variance: FrontierPoint;
+  max_sharpe: FrontierPoint;
+  frontier: FrontierPoint[];
+  note: string;
+};
