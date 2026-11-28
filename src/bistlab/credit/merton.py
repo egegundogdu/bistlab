@@ -1,12 +1,12 @@
-"""Merton / KMV yapısal kredi modeli.
+"""Merton / KMV structural credit model.
 
-Hisse, şirket varlıkları üzerine yazılmış bir call opsiyonudur (kullanım fiyatı = borç).
-Piyasa değeri (E) ve hisse oynaklığından (σE) iki denklemle varlık değeri (V) ve
-varlık oynaklığı (σV) çözülür:
+Equity is a call option on the firm's assets with the debt as the strike. The asset value
+(V) and asset volatility (σV) are solved from the market value of equity (E) and equity
+volatility (σE) with two equations:
     E    = V·N(d1) − D·e^(−rT)·N(d2)
     σE·E = N(d1)·σV·V
-Temerrüde uzaklık DD = d2, risk-nötr temerrüt olasılığı PD = N(−DD).
-KMV temerrüt noktası: kısa vadeli borç + uzun vadeli borcun yarısı.
+Distance to default DD = d2; risk-neutral probability of default PD = N(−DD).
+KMV default point: short-term debt + half of long-term debt.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def default_point(short_debt: float, long_debt: float) -> float:
 def merton_equity(
     asset_value: float, asset_vol: float, debt: float, rate: float, years: float = 1.0
 ) -> tuple[float, float]:
-    """Varlıklardan hisse değeri ve hisse oynaklığı."""
+    """Equity value and equity volatility implied by the assets."""
     d1, d2 = d1_d2(asset_value, debt, years, rate, asset_vol, 0.0)
     equity = asset_value * norm.cdf(d1) - debt * math.exp(-rate * years) * norm.cdf(d2)
     equity_vol = norm.cdf(d1) * asset_vol * asset_value / equity
@@ -59,7 +59,7 @@ def merton_equity(
 def solve_merton(
     equity: float, equity_vol: float, debt: float, rate: float, years: float = 1.0
 ) -> MertonResult:
-    """Hisse değeri ve oynaklığından varlık değeri/oynaklığını çözer."""
+    """Solves for asset value and asset volatility from equity value and volatility."""
 
     def equations(x: npt.NDArray[np.float64]) -> list[float]:
         value, vol = float(x[0]), abs(float(x[1]))
@@ -76,7 +76,7 @@ def solve_merton(
 
 
 def latest_debt(items: pd.DataFrame) -> tuple[str, float, float]:
-    """Son dönemin kısa ve uzun vadeli finansal borcu (kiralama dahil)."""
+    """Short- and long-term financial debt (including leases) for the latest period."""
     total = column(items, "Total Debt").dropna()
     if total.empty:
         raise ValueError("No total debt line item")
@@ -95,15 +95,15 @@ def last_close(symbol: str) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Merton/KMV temerrüt olasılığı")
+    parser = argparse.ArgumentParser(description="Merton/KMV probability of default")
     parser.add_argument("tickers", nargs="+")
-    parser.add_argument("--rate", type=float, default=0.40, help="Yıllık TL risksiz faiz")
+    parser.add_argument("--rate", type=float, default=0.40, help="annual TRY risk-free rate")
     args = parser.parse_args()
     rate = math.log1p(args.rate)
 
     print(
-        f"{'Hisse':<7}{'Dönem':>11}{'E (mr TL)':>11}{'DP (mr TL)':>12}{'σE':>7}{'σV':>7}"
-        f"{'DD':>7}{'PD':>9}{'  Z′′ / not':>14}"
+        f"{'Ticker':<7}{'Period':>11}{'E (bn TRY)':>12}{'DP (bn TRY)':>13}{'σE':>7}{'σV':>7}"
+        f"{'DD':>7}{'PD':>9}{'  Z″ / rating':>15}"
     )
     with Session(get_engine()) as session:
         for ticker in args.tickers:
@@ -120,20 +120,20 @@ def main() -> None:
                 equity_vol = annualized_volatility(returns)
                 result = solve_merton(market_cap, equity_vol, debt, rate)
             except (ValueError, KeyError) as error:
-                print(f"{code:<7} atlandı: {error}")
+                print(f"{code:<7} skipped: {error}")
                 continue
             scores = credit_table(items)
             last = scores.iloc[-1] if not scores.empty else None
             label = f"{last['z']:.2f} / {last['rating']}" if last is not None else "-"
             print(
-                f"{code:<7}{period:>11}{market_cap / 1e9:>11.1f}{debt / 1e9:>12.1f}"
+                f"{code:<7}{period:>11}{market_cap / 1e9:>12.1f}{debt / 1e9:>13.1f}"
                 f"{equity_vol:>7.2f}{result.asset_vol:>7.2f}"
                 f"{result.distance_to_default:>7.2f}{result.default_probability:>9.2e}"
-                f"{label:>14}"
+                f"{label:>15}"
             )
-    print("\nDP: KMV temerrüt noktası (kısa vadeli + uzun vadeli borcun yarısı), TL'ye çevrili.")
-    print("σE: son 1 yıl günlük hisse oynaklığı. PD: 1 yıllık risk-nötr temerrüt olasılığı.")
-    print("Eğitim amaçlı model çıktısıdır; kredi notu ya da yatırım tavsiyesi değildir.")
+    print("\nDP: KMV default point (short-term debt + half of long-term debt), in TRY.")
+    print("σE: daily equity volatility over the last year. PD: one-year risk-neutral probability.")
+    print("Model output for education; not a credit rating or investment advice.")
 
 
 if __name__ == "__main__":
