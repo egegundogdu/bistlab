@@ -50,7 +50,9 @@ def test_implied_volatility_roundtrip() -> None:
 
 def test_implied_volatility_rejects_arbitrage_prices() -> None:
     with pytest.raises(ValueError):
-        implied_volatility(60.0, 50.0, 55.0, 0.4, 0.35, "call")  # call, hisseden pahalı olamaz
+        implied_volatility(
+            60.0, 50.0, 55.0, 0.4, 0.35, "call"
+        )  # a call cannot cost more than the stock
 
 
 def test_expiry_returns_intrinsic_value() -> None:

@@ -25,7 +25,7 @@ def _items(net_income: float = 10.0) -> pd.DataFrame:
 
 
 def test_multiples_use_reporting_currency() -> None:
-    # Fiyat 40 TL, kur 40 TL/USD → piyasa değeri 40 × 100 / 40 = 100 USD
+    # Price TRY 40, FX 40 TRY/USD → market cap 40 × 100 / 40 = USD 100
     m = compute_multiples("TEST", "USD", price_try=40.0, fx_to_try=40.0, items=_items())
     assert m.market_cap_try_bn == pytest.approx(4000 / 1e9)
     assert m.pe == pytest.approx(10.0)

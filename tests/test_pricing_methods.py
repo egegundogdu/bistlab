@@ -4,7 +4,7 @@ from bistlab.derivatives.binomial import binomial_price
 from bistlab.derivatives.black_scholes import bs_price
 from bistlab.derivatives.monte_carlo import monte_carlo_price
 
-ARGS = (42.0, 40.0, 0.5, 0.10, 0.20)  # Hull örneği: spot, kullanım, vade, faiz, vol
+ARGS = (42.0, 40.0, 0.5, 0.10, 0.20)  # Hull example: spot, strike, maturity, rate, vol
 
 
 def test_binomial_converges_to_black_scholes() -> None:
@@ -14,7 +14,7 @@ def test_binomial_converges_to_black_scholes() -> None:
 
 
 def test_american_put_is_worth_more_than_european() -> None:
-    args = (100.0, 100.0, 1.0, 0.30, 0.30)  # yüksek faiz: erken kullanım değerli
+    args = (100.0, 100.0, 1.0, 0.30, 0.30)  # high rates: early exercise is valuable
     european = binomial_price(*args, "put", steps=500)
     american = binomial_price(*args, "put", steps=500, american=True)
     assert american > european + 0.5

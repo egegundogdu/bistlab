@@ -13,7 +13,7 @@ from bistlab.derivatives.futures import (
 def test_theoretical_price_cost_of_carry() -> None:
     # 100 × 1,40^0,5 ≈ 118,32
     assert theoretical_price(100.0, 0.5, 0.40) == pytest.approx(100 * 1.4**0.5)
-    # Temettü verimi vadeli fiyatı düşürür
+    # A dividend yield lowers the futures price
     assert theoretical_price(100.0, 0.5, 0.40, 0.05) < theoretical_price(100.0, 0.5, 0.40)
 
 
@@ -39,7 +39,7 @@ def test_partial_hedge_with_idiosyncratic_risk() -> None:
     market = pd.Series(rng.normal(0, 0.02, 500), index=index)
     asset = market + pd.Series(rng.normal(0, 0.02, 500), index=index)
     result = min_variance_hedge(asset, market)
-    assert 0 < result.risk_reduction < 1  # şirkete özgü risk hedge edilemez
+    assert 0 < result.risk_reduction < 1  # company-specific risk cannot be hedged
 
 
 def test_contracts_needed() -> None:

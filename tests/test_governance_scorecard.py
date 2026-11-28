@@ -74,7 +74,7 @@ def test_score_form_indicators() -> None:
     assert scores["Independent members ≥ 1/3"] == 1.0  # 2/4
     assert scores["Women members ≥ 25%"] == 1.0  # 2/4
     assert scores["Share of non-executive members"] == pytest.approx(0.75)
-    assert scores["Chair and CEO are different people"] == 0.0  # aynı kişi
+    assert scores["Chair and CEO are different people"] == 0.0  # same person
     assert scores["Board meeting attendance ≥ 90%"] == pytest.approx(0.5)
     assert scores["Audit committee fully independent"] == pytest.approx(0.5)
     assert scores["Severance policy on website"] is None  # formda yok

@@ -27,7 +27,7 @@ def test_provisional_when_fetched_same_local_day_or_missing() -> None:
     day = D(2026, 11, 25)
     assert is_provisional(Bar(day, 1.0, None))
     assert is_provisional(Bar(day, 1.0, dt.datetime(2026, 11, 25, 17, 0, tzinfo=UTC)))
-    # 25 Kas 22:00 UTC = 26 Kas 01:00 İstanbul -> doğrulanmış
+    # 25 Nov 22:00 UTC = 26 Nov 01:00 Istanbul -> confirmed
     assert not is_provisional(Bar(day, 1.0, dt.datetime(2026, 11, 25, 22, 0, tzinfo=UTC)))
     assert not is_provisional(Bar(day, 1.0, dt.datetime(2026, 11, 26, 18, 0)))
 
@@ -52,7 +52,7 @@ def test_calendar_missing_only_inside_series_range() -> None:
 
 def test_business_gaps_ignores_weekends_and_short_holidays() -> None:
     assert business_gaps([D(2026, 1, 9), D(2026, 1, 12)]) == []  # Cuma -> Pazartesi
-    assert business_gaps([D(2026, 1, 5), D(2026, 1, 9)]) == []  # 3 iş günü boşluk
+    assert business_gaps([D(2026, 1, 5), D(2026, 1, 9)]) == []  # 3 business-day gap
     gap = business_gaps([D(2026, 1, 5), D(2026, 1, 12)])
     assert gap == [D(2026, 1, d) for d in (6, 7, 8, 9)]
 
@@ -75,7 +75,7 @@ def test_assess_statuses() -> None:
     assert good.status == "Good" and good.coverage == 1.0 and not good.provisional
     stale = assess("ASELS", bars(calendar[:5]), calendar)
     assert stale.stale == 5 and stale.status == "Problem"
-    # 10 günde 1 eksik = %90 kapsam -> sorunlu; uzun seride 1 eksik -> dikkat
+    # 1 missing in 10 days = 90% coverage -> problem; 1 missing in a long series -> warning
     short_gap = assess("BIMAS", bars(calendar[:3] + calendar[4:]), calendar)
     assert short_gap.missing == [D(2026, 1, 8)] and short_gap.status == "Problem"
     long_calendar = [D(2026, 1, 1) + dt.timedelta(days=i) for i in range(60)]
@@ -87,7 +87,7 @@ def test_split_like_detects_split_ratios_only() -> None:
     assert split_like(4.0)  # ×5 (SOL.MC 2025-12-10)
     assert split_like(-0.5)  # ÷2
     assert split_like(-0.9)  # ÷10
-    assert not split_like(-0.672)  # ÷3'e %1,6 uzak (MAXNQ gerçek düşüş)
+    assert not split_like(-0.672)  # 1.6% away from ÷3 (MAXNQ real drop)
     assert not split_like(0.30)
 
 

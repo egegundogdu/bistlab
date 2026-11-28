@@ -12,7 +12,9 @@ def test_option_report_is_internally_consistent() -> None:
     assert out.monte_carlo == pytest.approx(out.black_scholes, abs=4 * out.monte_carlo_std_error)
     assert 0 < out.greeks.delta < 1
     put = tools.option_report(100.0, 100.0, 90, 0.40, 0.35, "put", 0.0)
-    assert put.binomial_american > put.binomial_european  # pozitif faizde erken kullanım değerli
+    assert (
+        put.binomial_american > put.binomial_european
+    )  # early exercise has value at positive rates
 
 
 def test_implied_vol_round_trip() -> None:

@@ -47,11 +47,11 @@ def test_bad_weight_sums() -> None:
 def test_render_markdown() -> None:
     findings = [
         Finding("BG-01", "Gizli bilgi", ".env .gitignore'da", True, "ok"),
-        Finding("YD-01", "Yedekleme", "Yedek betiği", False, "yok | eksik", "Medium"),
+        Finding("YD-01", "Backup", "Backup script", False, "missing | incomplete", "Medium"),
     ]
     text = render_markdown(findings, dt.date(2026, 11, 26))
     assert "Result: 1 of 2 controls pass, 1 finding" in text
-    assert "| YD-01 | Yedekleme | Yedek betiği | Finding (Medium) | yok / eksik |" in text
+    assert "| YD-01 | Backup | Backup script | Finding (Medium) | missing / incomplete |" in text
 
 
 def test_find_secrets_respects_allow_marker() -> None:

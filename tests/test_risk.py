@@ -29,7 +29,7 @@ def test_max_drawdown() -> None:
 
 
 def test_historical_var_and_cvar() -> None:
-    # -%5'ten +%14'e 20 eşit aralıklı getiri; %5'lik dilim (doğrusal) = -0,0405
+    # 20 evenly spaced returns from -5% to +14%; 5% quantile (linear) = -0.0405
     r = pd.Series(np.round(np.arange(-0.05, 0.15, 0.01), 4))
     assert historical_var(r) == pytest.approx(0.0405)
     assert conditional_var(r) == pytest.approx(0.05)

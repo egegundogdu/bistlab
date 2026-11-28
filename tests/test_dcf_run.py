@@ -68,7 +68,7 @@ def test_adjust_for_leases() -> None:
     )
     fcf, debt = adjust_for_leases(items, base_fcf=10.0, total_debt=20.0, years=2)
     assert fcf == pytest.approx(7.0)  # 10 - ortalama(2, 4)
-    assert debt == pytest.approx(8.0)  # 20 - son kira yükümlülüğü 12
+    assert debt == pytest.approx(8.0)  # 20 - latest lease liability 12
 
 
 def test_implied_growth_roundtrip() -> None:

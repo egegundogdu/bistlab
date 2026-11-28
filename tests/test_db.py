@@ -9,7 +9,7 @@ def test_security_and_price_roundtrip() -> None:
     engine = get_engine("sqlite:///:memory:")
     init_db(engine)
     with Session(engine) as session:
-        security = Security(ticker="TEST", name="Test A.Ş.")
+        security = Security(ticker="TEST", name="Test Inc.")
         session.add(security)
         session.flush()
         session.add(
