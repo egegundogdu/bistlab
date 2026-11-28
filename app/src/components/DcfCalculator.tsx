@@ -8,7 +8,7 @@ import { num, pct, tone } from "@/lib/format";
 const API = process.env.NEXT_PUBLIC_BISTLAB_API_URL ?? "http://127.0.0.1:8000";
 
 function bn(value: number, currency: string): string {
-  return `${num(value / 1e9, 1)} mr ${currency === "TRY" ? "₺" : currency}`;
+  return `${num(value / 1e9, 1)} bn ${currency === "TRY" ? "₺" : currency}`;
 }
 
 export function DcfCalculator({ initial }: { initial: Dcf }) {
@@ -24,7 +24,7 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
       return;
     }
     if (wacc - growth < 0.005) {
-      setError("WACC, uzun vadeli büyümeden en az 0,5 puan yüksek olmalı.");
+      setError("WACC must exceed long-term growth by at least 0.5 percentage points.");
       return;
     }
     const controller = new AbortController();
@@ -33,14 +33,14 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
         const url = `${API}/valuation/dcf/${initial.ticker}?wacc=${wacc}&terminal_growth=${growth}`;
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-          setError(body?.detail ?? `API hatası (${response.status})`);
+          const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+          setError(typeof body?.detail === "string" ? body.detail : `API error (${response.status})`);
           return;
         }
         setResult((await response.json()) as Dcf);
         setError(null);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") setError("API'ye ulaşılamıyor.");
+        if ((e as Error).name !== "AbortError") setError("API unreachable.");
       }
     }, 250);
     return () => {
@@ -63,8 +63,8 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
   return (
     <div className="card" style={{ borderColor: "#2B4A75" }}>
       <div className="card-head">
-        <h2>DCF hesaplayıcı</h2>
-        <span className="tag">SPL Düzey 3 · Değerleme</span>
+        <h2>DCF calculator</h2>
+        <span className="tag">Equity Investments</span>
       </div>
 
       <div style={{ display: "grid", gap: 6 }}>
@@ -77,7 +77,7 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
       </div>
       <div style={{ display: "grid", gap: 6 }}>
         <label htmlFor="growth" style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: 13 }}>
-          <span>Uzun vadeli büyüme (nominal)</span>
+          <span>Long-term growth (nominal)</span>
           <span className="mono" style={{ color: "var(--text)" }}>{pct(growth, 2).replace("+", "")}</span>
         </label>
         <input id="growth" type="range" min={growthMin} max={growthMax} step={step} value={growth}
@@ -85,30 +85,30 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
       </div>
 
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14, display: "grid", gap: 6 }}>
-        <span className="tag">Hisse başı içsel değer</span>
+        <span className="tag">Intrinsic value per share</span>
         {error ? (
           <span style={{ color: "var(--down)", fontSize: 13 }}>{error}</span>
         ) : (
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
             <span className="mono" style={{ fontSize: 30, fontWeight: 600 }}>{num(result.per_share_try)} ₺</span>
             <span className="mono" style={{ fontSize: 15, color: tone(result.upside) }}>
-              {pct(result.upside)} fiyata göre
+              {pct(result.upside)} vs price
             </span>
           </div>
         )}
         <span className="tag">
-          Fiyat {num(result.price_try)} ₺ · Baz FCF {bn(result.base_fcf, result.currency)}
-          {result.lease_adjusted ? " (kira düzeltmeli)" : ""} · Net borç {bn(result.net_debt, result.currency)} · Uç
-          değerin payı {pct(result.terminal_share, 0).replace("+", "")}
+          Price {num(result.price_try)} ₺ · Base FCF {bn(result.base_fcf, result.currency)}
+          {result.lease_adjusted ? " (lease-adjusted)" : ""} · Net debt {bn(result.net_debt, result.currency)} · Terminal
+          value share {pct(result.terminal_share, 0).replace("+", "")}
         </span>
         <span className="tag">
-          Model: WACC {pct(result.model_wacc).replace("+", "")} (beta {num(result.beta)}, {result.beta_note}), büyüme{" "}
+          Model: WACC {pct(result.model_wacc).replace("+", "")} (beta {num(result.beta)}, {result.beta_note}), growth{" "}
           {pct(result.model_terminal_growth).replace("+", "")}
           {changed && (
             <>
               {" · "}
               <button type="button" onClick={reset} className="pill" style={{ minHeight: 24, background: "transparent", cursor: "pointer" }}>
-                Modele dön
+                Reset to model
               </button>
             </>
           )}
@@ -117,14 +117,14 @@ export function DcfCalculator({ initial }: { initial: Dcf }) {
 
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "grid", gap: 8 }}>
         <span className="tag">
-          Ters DCF: bugünkü fiyat 5 yıl boyunca yıllık{" "}
+          Reverse DCF: today&apos;s price implies{" "}
           <span className="mono" style={{ color: "var(--text)" }}>
             {result.implied_growth === null ? "–" : pct(result.implied_growth).replace("+", "")}
           </span>{" "}
-          FCF büyümesi fiyatlıyor ({result.currency}). Varsayım: {result.growth.map((g) => pct(g, 0).replace("+", "")).join(", ")}.
+          annual FCF growth for 5 years ({result.currency}). Assumed path: {result.growth.map((g) => pct(g, 0).replace("+", "")).join(", ")}.
         </span>
         <div style={{ overflowX: "auto" }}>
-          <table aria-label="Duyarlılık tablosu, TL / hisse">
+          <table aria-label="Sensitivity table, TRY per share">
             <thead>
               <tr>
                 <th>WACC \ g</th>

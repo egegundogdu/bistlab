@@ -8,7 +8,10 @@ import {
   type PriceQuality,
 } from "@/lib/api";
 
-export const metadata = { title: "Tarayıcı · bistlab" };
+export const metadata = { title: "Screener · bistlab" };
+
+// Temporary: the API still returns Turkish status labels (switched to English in the API PR).
+const QUALITY: Record<string, string> = { "İyi": "Good", Dikkat: "Warning", Sorunlu: "Problem" };
 
 export default async function ScreenerPage() {
   const [multiples, credit, merton, governance, quality] = await Promise.all([
@@ -41,10 +44,10 @@ export default async function ScreenerPage() {
       pd: d?.default_probability ?? null,
       governance: g?.total ?? null,
       lastDate: q?.last ?? null,
-      quality: q?.status ?? null,
+      quality: q ? (QUALITY[q.status] ?? q.status) : null,
       qualityNote: q
-        ? `${q.bars} gün · eksik ${q.missing} · sıçrama ${q.jumps} · donuk seri ${q.flat_run}` +
-          (q.provisional ? " · son bar geçici" : "")
+        ? `${q.bars} days · missing ${q.missing} · jumps ${q.jumps} · flat run ${q.flat_run}` +
+          (q.provisional ? " · last bar provisional" : "")
         : null,
     };
   });
@@ -52,15 +55,15 @@ export default async function ScreenerPage() {
   return (
     <div className="container" style={{ padding: "32px 32px 48px" }}>
       <header style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>Tarayıcı</h1>
+        <h1 style={{ margin: 0 }}>Screener</h1>
         <p className="note" style={{ maxWidth: 760 }}>
-          Şirket sayfası tek hisseye derin bakar; burada 8 şirket yan yana. Değerleme, kredi, kurumsal
-          yönetim ve veri kalitesi aynı satırda olunca asıl soru görünür: ucuz görünen şirket
-          gerçekten ucuz mu, yoksa riski mi fiyatlanmış? Sütun başlığına tıklayarak sırala.
+          The company page looks deep at one stock; here eight companies sit side by side. With
+          valuation, credit, governance and data quality on one row, the real question shows: is the
+          cheap-looking stock actually cheap, or is risk being priced in? Click a column header to sort.
         </p>
       </header>
       {rows.length === 0 ? (
-        <div className="card error">API&apos;ye ulaşılamıyor; uvicorn çalışıyor mu?</div>
+        <div className="card error">API unreachable — is uvicorn running?</div>
       ) : (
         <ScreenerTable rows={rows} median={multiples?.median ?? {}} />
       )}
