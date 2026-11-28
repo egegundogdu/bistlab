@@ -1,12 +1,17 @@
-"""bistlab'ın kendi bilgi sistemleri öz denetimi.
+"""Self-audit of bistlab's own information systems.
 
-SPK'nın bilgi sistemleri yönetimi düzenlemesindeki (VII-128.10, 2025; önceki VII-128.9)
-kontrol alanlarından esinlenen otomatik kontroller: gizli bilgi yönetimi, değişiklik yönetimi,
-bağımlılık yönetimi, veri bütünlüğü, denetim izi, yedekleme ve erişim. Her kontrol kanıtıyla
-birlikte "Uygun" ya da "Bulgu" döner; sonuç docs/audit/ altına Markdown rapor olarak yazılır.
+Automated controls inspired by the control areas of the Turkish Capital Markets Board's
+information-systems regulation (VII-128.10, 2025; previously VII-128.9): secrets management,
+change management, dependency management, data integrity, audit trail, backup and access.
+Each control returns "Pass" or "Finding" with evidence; the result is written to docs/audit/
+as a Markdown report.
 
-Resmî bir bağımsız denetim değildir; denetim yaklaşımını kendi sistemimize uygulayan bir
-öz değerlendirmedir.
+This is not an official independent audit; it is a self-assessment that applies an audit
+approach to our own system.
+
+Control codes keep their original abbreviations for continuity with earlier reports:
+BG = secrets, DY = change management, BY = dependencies, VB = data integrity,
+DI = audit trail, YD = backup, ER = access.
 """
 
 from __future__ import annotations
@@ -33,7 +38,7 @@ SECRET = re.compile(
     r"(?i)(api[_-]?key|secret|password|passwd|token)\s*[=:]\s*[\"']?([A-Za-z0-9_\-]{12,})"
 )
 PLACEHOLDER_WORDS = ("example", "your", "xxx", "changeme", "placeholder")
-ALLOW_MARKER = "selfcheck: allow"  # bilinçli sahte anahtarlar (test fikstürleri)
+ALLOW_MARKER = "selfcheck: allow"  # deliberate fake keys (test fixtures)
 PR_SUFFIX = re.compile(r"\(#\d+\)\s*$")
 
 
@@ -44,14 +49,14 @@ class Finding:
     control: str
     passed: bool
     evidence: str
-    risk: str = "Orta"  # bulgu olursa önem derecesi
+    risk: str = "Medium"  # severity if the control fails
 
     @property
     def status(self) -> str:
-        return "Uygun" if self.passed else f"Bulgu ({self.risk})"
+        return "Pass" if self.passed else f"Finding ({self.risk})"
 
 
-# ---- saf yardımcılar (testlenebilir) ----
+# ---- pure helpers (testable) ----
 
 
 def gitignore_covers(text: str, name: str) -> bool:
@@ -60,7 +65,7 @@ def gitignore_covers(text: str, name: str) -> bool:
 
 
 def find_secrets(text: str) -> list[str]:
-    """Gerçek gizli anahtara benzeyen atamaların anahtar adlarını döner."""
+    """Names of assignments that look like real secrets."""
     hits = []
     scanned = "\n".join(line for line in text.splitlines() if ALLOW_MARKER not in line)
     for match in SECRET.finditer(scanned):
@@ -78,7 +83,7 @@ def ci_missing_steps(text: str, steps: Iterable[str]) -> list[str]:
 
 
 def pr_ratio(subjects: list[str]) -> float:
-    """main'deki commit'lerin ne kadarı squash edilmiş PR'dan geliyor ('... (#12)')."""
+    """Share of commits on main that come from a squashed PR ('... (#12)')."""
     if not subjects:
         return 0.0
     return sum(bool(PR_SUFFIX.search(s)) for s in subjects) / len(subjects)
@@ -91,11 +96,11 @@ def bad_weight_sums(sums: dict[str, float], tolerance: float = 0.02) -> list[str
 def render_markdown(findings: list[Finding], day: dt.date) -> str:
     passed = sum(f.passed for f in findings)
     lines = [
-        f"# bistlab bilgi sistemleri öz denetimi — {day.isoformat()}",
+        f"# bistlab information systems self-audit — {day.isoformat()}",
         "",
-        f"Sonuç: {len(findings)} kontrolden {passed} uygun, {len(findings) - passed} bulgu.",
+        f"Result: {passed} of {len(findings)} controls pass, {len(findings) - passed} findings.",
         "",
-        "| Kod | Alan | Kontrol | Durum | Kanıt |",
+        "| Code | Area | Control | Status | Evidence |",
         "| --- | --- | --- | --- | --- |",
     ]
     for f in findings:
@@ -103,13 +108,13 @@ def render_markdown(findings: list[Finding], day: dt.date) -> str:
         lines.append(f"| {f.code} | {f.area} | {f.control} | {f.status} | {evidence} |")
     lines += [
         "",
-        "Resmî bağımsız denetim değildir; VII-128.10 kontrol alanlarından esinlenen öz "
-        "değerlendirmedir.",
+        "Not an official independent audit; a self-assessment inspired by the VII-128.10 "
+        "control areas.",
     ]
     return "\n".join(lines) + "\n"
 
 
-# ---- kontroller ----
+# ---- controls ----
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -133,35 +138,35 @@ def secret_checks(root: Path) -> list[Finding]:
     return [
         Finding(
             "BG-01",
-            "Gizli bilgi",
-            ".env .gitignore'da",
+            "Secrets",
+            ".env listed in .gitignore",
             gitignore_covers(gitignore, ".env"),
-            ".gitignore satırları kontrol edildi",
-            "Yüksek",
+            ".gitignore lines checked",
+            "High",
         ),
         Finding(
             "BG-02",
-            "Gizli bilgi",
-            ".env git'te izlenmiyor",
+            "Secrets",
+            ".env not tracked by git",
             not tracked_env,
             "git ls-files .env",
-            "Yüksek",
+            "High",
         ),
         Finding(
             "BG-03",
-            "Gizli bilgi",
-            ".env hiçbir commit'e girmemiş",
+            "Secrets",
+            ".env never committed",
             not history.stdout.strip(),
             "git log --all -- .env",
-            "Yüksek",
+            "High",
         ),
         Finding(
             "BG-04",
-            "Gizli bilgi",
-            "İzlenen dosyalarda anahtar kalıbı yok",
+            "Secrets",
+            "No key patterns in tracked files",
             not hits,
-            ", ".join(hits) or "taranan tüm dosyalar temiz",
-            "Yüksek",
+            ", ".join(hits) or "all scanned files clean",
+            "High",
         ),
     ]
 
@@ -175,41 +180,41 @@ def change_checks(root: Path) -> list[Finding]:
     return [
         Finding(
             "DY-01",
-            "Değişiklik yönetimi",
-            "main dalı korumalı (PR + CI zorunlu)",
+            "Change management",
+            "main branch protected (PR + CI required)",
             protection.returncode == 0,
             "gh api .../branches/main/protection",
         ),
         Finding(
             "DY-02",
-            "Değişiklik yönetimi",
-            "main'e giren değişikliklerin ≥%90'ı PR'dan",
+            "Change management",
+            "≥90% of changes to main come through a PR",
             ratio >= 0.9,
-            f"{len(subjects)} commit, PR oranı %{ratio * 100:.0f}",
-            "Düşük",
+            f"{len(subjects)} commits, PR share {ratio * 100:.0f}%",
+            "Low",
         ),
         Finding(
             "DY-03",
-            "Değişiklik yönetimi",
-            "CI'da lint, tip ve test adımları",
+            "Change management",
+            "CI runs lint, type and test steps",
             not missing,
-            "eksik: " + ", ".join(missing) if missing else "ruff, mypy, pytest var",
+            "missing: " + ", ".join(missing) if missing else "ruff, mypy, pytest present",
         ),
         Finding(
             "DY-04",
-            "Değişiklik yönetimi",
-            "pre-commit kancaları tanımlı",
+            "Change management",
+            "pre-commit hooks defined",
             (root / ".pre-commit-config.yaml").exists(),
             ".pre-commit-config.yaml",
-            "Düşük",
+            "Low",
         ),
         Finding(
             "BY-01",
-            "Bağımlılık yönetimi",
-            "Bağımlılık sürümleri kilitli",
+            "Dependency management",
+            "Dependency versions locked",
             (root / "uv.lock").exists(),
             "uv.lock",
-            "Orta",
+            "Medium",
         ),
     ]
 
@@ -237,38 +242,38 @@ def data_checks(engine: Engine) -> list[Finding]:
     return [
         Finding(
             "VB-01",
-            "Veri bütünlüğü",
-            "Sıfır/negatif kapanış fiyatı yok",
+            "Data integrity",
+            "No zero or negative close prices",
             bad_prices == 0,
-            f"{bad_prices} hatalı satır",
+            f"{bad_prices} invalid rows",
         ),
         Finding(
             "VB-02",
-            "Veri bütünlüğü",
-            "Fon ağırlıkları toplamı ≈ %100",
+            "Data integrity",
+            "Fund weights sum to ≈100%",
             not bad_sums,
-            f"{len(sums)} rapor; sapan: {', '.join(bad_sums) or 'yok'}",
+            f"{len(sums)} reports; off: {', '.join(bad_sums) or 'none'}",
         ),
         Finding(
             "VB-03",
-            "Veri bütünlüğü",
-            "Fiyat serileri güncel (≤10 gün)",
+            "Data integrity",
+            "Price series up to date (≤10 days)",
             not stale,
-            f"{len(last_dates)} seri; eski: {', '.join(stale[:8]) or 'yok'}",
-            "Düşük",
+            f"{len(last_dates)} series; stale: {', '.join(stale[:8]) or 'none'}",
+            "Low",
         ),
         Finding(
             "DI-01",
-            "Denetim izi",
-            "Fiyat kayıtlarında kaynak ve çekilme zamanı",
+            "Audit trail",
+            "Price records carry source and fetch time",
             lineage,
-            "prices sütunları: " + ", ".join(sorted(columns)),
+            "prices columns: " + ", ".join(sorted(columns)),
         ),
     ]
 
 
 def lineage_check(engine: Engine) -> list[Finding]:
-    """DI-01 sütunun varlığına bakar (tasarım); bu kontrol gerçekten dolduğuna (işleyiş)."""
+    """DI-01 checks that the column exists (design); this checks it is filled (operation)."""
     recent = dt.date.today() - dt.timedelta(days=7)
     with Session(engine) as session:
         total = (
@@ -285,10 +290,10 @@ def lineage_check(engine: Engine) -> list[Finding]:
     return [
         Finding(
             "DI-02",
-            "Denetim izi",
-            "Son 7 günün fiyatlarında fetched_at dolu (işleyiş)",
+            "Audit trail",
+            "fetched_at filled for the last 7 days of prices (operation)",
             total > 0 and missing == 0,
-            f"{missing}/{total} kayıtta eksik",
+            f"{missing}/{total} records missing",
         )
     ]
 
@@ -297,7 +302,7 @@ MAX_BACKUP_AGE_DAYS = 7
 
 
 def audit_vulnerabilities(report: str) -> list[str]:
-    """pip-audit JSON çıktısından 'paket sürüm: açık' listesi."""
+    """'package version: advisory' list from pip-audit JSON output."""
     data = json.loads(report)
     found = []
     for dep in data.get("dependencies", []):
@@ -309,15 +314,15 @@ def audit_vulnerabilities(report: str) -> list[str]:
 def restore_verdict(
     restored_rows: int, restored_tables: str, live_tables: str, age_days: float
 ) -> tuple[bool, str]:
-    """Geri yüklenen kopya kullanılabilir mi ve yedek yeterince taze mi."""
+    """Is the restored copy usable, and is the backup recent enough."""
     problems = []
     if restored_rows <= 0:
-        problems.append("geri yüklenen prices boş")
+        problems.append("restored prices table is empty")
     if restored_tables != live_tables:
-        problems.append("tablo listesi canlıyla aynı değil")
+        problems.append("table list differs from the live database")
     if age_days > MAX_BACKUP_AGE_DAYS:
-        problems.append(f"yedek {age_days:.0f} günlük (> {MAX_BACKUP_AGE_DAYS})")
-    detail = f"{restored_rows} fiyat satırı geri yüklendi, yedek {age_days:.1f} günlük"
+        problems.append(f"backup is {age_days:.0f} days old (> {MAX_BACKUP_AGE_DAYS})")
+    detail = f"{restored_rows} price rows restored, backup is {age_days:.1f} days old"
     return not problems, "; ".join(problems) or detail
 
 
@@ -382,35 +387,35 @@ def dependency_check(root: Path) -> list[Finding]:
         check=False,
     )
     if exported.returncode != 0 or not audit.stdout.strip():
-        evidence = "pip-audit çalıştırılamadı: " + (audit.stderr or exported.stderr)[-120:]
+        evidence = "pip-audit could not run: " + (audit.stderr or exported.stderr)[-120:]
         return [
             Finding(
                 "BY-02",
-                "Bağımlılık yönetimi",
-                "Bilinen güvenlik açığı yok",
+                "Dependency management",
+                "No known vulnerabilities",
                 False,
                 evidence.replace("\n", " "),
-                "Orta",
+                "Medium",
             )
         ]
     vulns = audit_vulnerabilities(audit.stdout)
     return [
         Finding(
             "BY-02",
-            "Bağımlılık yönetimi",
-            "Bilinen güvenlik açığı yok (pip-audit)",
+            "Dependency management",
+            "No known vulnerabilities (pip-audit)",
             not vulns,
-            ", ".join(vulns[:5]) or "taranan bağımlılıklarda açık yok",
-            "Yüksek",
+            ", ".join(vulns[:5]) or "no advisories in scanned dependencies",
+            "High",
         )
     ]
 
 
 def restore_check(root: Path) -> list[Finding]:
-    """Son yedeği geçici restore_check veritabanına açar; canlı DB'ye dokunmaz."""
+    """Restores the latest backup into a temporary restore_check database; never touches live."""
     backups = sorted((root / "backups").glob("bistlab-*.sql.gz"))
     if not backups:
-        return [Finding("YD-02", "Yedekleme", "Son yedek geri yüklenebiliyor", False, "yedek yok")]
+        return [Finding("YD-02", "Backup", "Latest backup can be restored", False, "no backup")]
     latest = backups[-1]
     age_days = (time.time() - latest.stat().st_mtime) / 86400
     tables_sql = (
@@ -433,10 +438,10 @@ def restore_check(root: Path) -> list[Finding]:
         return [
             Finding(
                 "YD-02",
-                "Yedekleme",
-                "Son yedek geri yüklenebiliyor",
+                "Backup",
+                "Latest backup can be restored",
                 False,
-                f"{latest.name}: geri yükleme hatası ({type(error).__name__})",
+                f"{latest.name}: restore error ({type(error).__name__})",
             )
         ]
     finally:
@@ -464,8 +469,8 @@ def restore_check(root: Path) -> list[Finding]:
     return [
         Finding(
             "YD-02",
-            "Yedekleme",
-            "Son yedek geri yüklenebiliyor ve ≤ 7 gün",
+            "Backup",
+            "Latest backup restores and is ≤ 7 days old",
             passed,
             f"{latest.name}: {evidence}",
         )
@@ -473,12 +478,12 @@ def restore_check(root: Path) -> list[Finding]:
 
 
 def quality_verdict(statuses: dict[str, str]) -> tuple[bool, str]:
-    """Seri durumlarından (kod → İyi/Dikkat/Sorunlu) VB-04 sonucu."""
+    """VB-04 verdict from series statuses (ticker → Good/Warning/Problem)."""
     values = list(statuses.values())
     bad = sorted(code for code, status in statuses.items() if status == "Problem")
     summary = (
-        f"{len(values)} seri: {values.count('Good')} iyi, {values.count('Warning')} dikkat, "
-        f"{len(bad)} sorunlu"
+        f"{len(values)} series: {values.count('Good')} good, {values.count('Warning')} warning, "
+        f"{len(bad)} problem"
     )
     if bad:
         summary += " (" + ", ".join(bad[:5]) + (" …" if len(bad) > 5 else "") + ")"
@@ -486,16 +491,16 @@ def quality_verdict(statuses: dict[str, str]) -> tuple[bool, str]:
 
 
 def price_quality_check() -> list[Finding]:
-    """Fiyat kalitesi raporunu (bistlab.quality.prices) denetim kontrolüne çevirir."""
-    control = "Fiyat serilerinde sorunlu seri yok (kalite raporu)"
+    """Turns the price-quality report (bistlab.quality.prices) into an audit control."""
+    control = "No problem price series (quality report)"
     try:
         from bistlab.quality.prices import assess_all, load_bars
 
         results = assess_all(load_bars())
     except (Exception, SystemExit) as error:
-        return [Finding("VB-04", "Veri bütünlüğü", control, False, f"çalıştırılamadı: {error}")]
+        return [Finding("VB-04", "Data integrity", control, False, f"could not run: {error}")]
     passed, evidence = quality_verdict({q.ticker: q.status for q in results})
-    return [Finding("VB-04", "Veri bütünlüğü", control, passed, evidence)]
+    return [Finding("VB-04", "Data integrity", control, passed, evidence)]
 
 
 def operations_checks(root: Path) -> list[Finding]:
@@ -506,25 +511,25 @@ def operations_checks(root: Path) -> list[Finding]:
     return [
         Finding(
             "YD-01",
-            "Yedekleme",
-            "Veritabanı yedekleme betiği var",
+            "Backup",
+            "Database backup script exists",
             bool(backups),
-            ", ".join(p.name for p in backups) or "scripts/backup* yok",
+            ", ".join(p.name for p in backups) or "scripts/backup* missing",
         ),
         Finding(
             "ER-01",
-            "Erişim",
-            "Veritabanı parolası koda gömülü değil",
+            "Access",
+            "Database password not hard-coded",
             not default_password,
             "docker-compose.yml",
-            "Düşük",
+            "Low",
         ),
     ]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="bistlab bilgi sistemleri öz denetimi")
-    parser.add_argument("--no-report", action="store_true", help="Markdown rapor yazma")
+    parser = argparse.ArgumentParser(description="bistlab information systems self-audit")
+    parser.add_argument("--no-report", action="store_true", help="do not write the Markdown report")
     args = parser.parse_args()
 
     root = Path(run("git", "rev-parse", "--show-toplevel").stdout.strip() or ".")
@@ -540,15 +545,15 @@ def main() -> None:
     )
     for f in findings:
         mark = "✓" if f.passed else "✗"
-        print(f"{mark} {f.code:<6} {f.control:<45} {f.status:<14} {f.evidence[:60]}")
+        print(f"{mark} {f.code:<6} {f.control:<45} {f.status:<16} {f.evidence[:60]}")
     passed = sum(f.passed for f in findings)
-    print(f"\n{len(findings)} kontrol: {passed} uygun, {len(findings) - passed} bulgu")
+    print(f"\n{len(findings)} controls: {passed} pass, {len(findings) - passed} findings")
     if not args.no_report:
         day = dt.date.today()
-        path = root / "docs" / "audit" / f"oz-denetim-{day.isoformat()}.md"
+        path = root / "docs" / "audit" / f"self-audit-{day.isoformat()}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(render_markdown(findings, day), encoding="utf-8")
-        print(f"Rapor: {path.relative_to(root)}")
+        print(f"Report: {path.relative_to(root)}")
 
 
 if __name__ == "__main__":

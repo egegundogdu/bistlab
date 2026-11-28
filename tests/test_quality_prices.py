@@ -115,6 +115,6 @@ def test_foreign_series_one_business_day_behind_is_not_stale() -> None:
     calendar = [D(2026, 11, d) for d in (20, 23, 24, 25, 26)]
     us = bars([D(2026, 11, d) for d in (20, 23, 24, 25)])
     q = assess("ENR.DE", us, calendar)
-    assert q.market == "Yabancı" and q.stale == 0 and q.status == "Good"
+    assert q.market == "Foreign" and q.stale == 0 and q.status == "Good"
     two_behind = assess("ENR.DE", bars([D(2026, 11, d) for d in (20, 23, 24)]), calendar)
     assert two_behind.stale == 1 and two_behind.status == "Warning"
