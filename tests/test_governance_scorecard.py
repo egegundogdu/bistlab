@@ -81,12 +81,12 @@ def test_score_form_indicators() -> None:
 
 
 def test_total_score_reweights_missing_sections() -> None:
-    assert total_score({"Pay sahipleri": 1.0, "Yönetim kurulu": 0.0}) == pytest.approx(
+    assert total_score({"Shareholders": 1.0, "Board of directors": 0.0}) == pytest.approx(
         10 * 0.25 / 0.60
     )
 
 
 def test_section_scores_skip_unanswered() -> None:
     sections = section_scores(score_form(read_form(HTML)))
-    assert "Menfaat sahipleri" not in sections
-    assert 0 <= sections["Yönetim kurulu"] <= 1
+    assert "Stakeholders" not in sections
+    assert 0 <= sections["Board of directors"] <= 1

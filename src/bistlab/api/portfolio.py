@@ -58,17 +58,19 @@ def aligned_returns(
             continue
         series[ticker] = closes
     if len(series) < 2:
-        raise ValueError("En az iki hisse için fiyat gerekli.")
+        raise ValueError("Prices are required for at least two stocks.")
     frame = pd.DataFrame(series)
     frame.index = pd.to_datetime(frame.index)
     frame = frame.sort_index().dropna()
     if frame.empty:
-        raise ValueError("Hisselerin ortak işlem günü yok.")
+        raise ValueError("The stocks have no common trading days.")
     end = pd.Timestamp(frame.index.max())
     frame = frame[frame.index >= end - pd.Timedelta(days=int(years * 365.25))]
     returns = daily_returns(frame)
     if len(returns) < MIN_OBSERVATIONS:
-        raise ValueError(f"Ortak aralıkta yeterli gözlem yok (en az {MIN_OBSERVATIONS} gün).")
+        raise ValueError(
+            f"Not enough observations in the common range (at least {MIN_OBSERVATIONS} days)."
+        )
     return returns, skipped
 
 
@@ -79,14 +81,14 @@ def normalized_weights(
     if not weights:
         return np.full(len(names), 1.0 / len(names), dtype=np.float64)
     if len(weights) != len(tickers):
-        raise ValueError("Ağırlık sayısı hisse sayısıyla aynı olmalı.")
+        raise ValueError("Number of weights must match the number of tickers.")
     by_ticker = dict(zip(tickers, weights, strict=True))
     w = np.asarray([by_ticker[name] for name in names], dtype=np.float64)
     if (w < 0).any():
-        raise ValueError("Ağırlıklar negatif olamaz (açığa satış yok).")
+        raise ValueError("Weights cannot be negative (no short selling).")
     total = float(w.sum())
     if total <= 0:
-        raise ValueError("Ağırlıkların toplamı pozitif olmalı.")
+        raise ValueError("Weights must sum to a positive number.")
     return np.asarray(w / total, dtype=np.float64)
 
 

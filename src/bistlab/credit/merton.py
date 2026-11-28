@@ -69,7 +69,7 @@ def solve_merton(
     start = [equity + debt, equity_vol * equity / (equity + debt)]
     solution = root(equations, start)
     if not solution.success:
-        raise ValueError(f"Merton denklemleri çözülemedi: {solution.message}")
+        raise ValueError(f"Merton equations did not converge: {solution.message}")
     value, vol = float(solution.x[0]), abs(float(solution.x[1]))
     _, d2 = d1_d2(value, debt, years, rate, vol, 0.0)
     return MertonResult(value, vol, float(d2), float(norm.cdf(-d2)))
@@ -79,7 +79,7 @@ def latest_debt(items: pd.DataFrame) -> tuple[str, float, float]:
     """Son dönemin kısa ve uzun vadeli finansal borcu (kiralama dahil)."""
     total = column(items, "Total Debt").dropna()
     if total.empty:
-        raise ValueError("Toplam borç kalemi yok")
+        raise ValueError("No total debt line item")
     period = total.index[-1]
     short = column(items, "Current Debt And Capital Lease Obligation").fillna(
         column(items, "Current Debt")

@@ -140,7 +140,7 @@ def futures_hedge(
     cutoff = closes.index.max() - pd.Timedelta(days=365 * years)
     returns = closes[closes.index >= cutoff].pct_change().dropna()
     if len(returns) < 20:
-        raise ValueError("Hedge oranı için yeterli ortak fiyat yok")
+        raise ValueError("Not enough overlapping prices for the hedge ratio")
     portfolio = returns[tickers].mean(axis=1)
     hedge = min_variance_hedge(portfolio, returns[index])
     spot = float(closes[index].iloc[-1])

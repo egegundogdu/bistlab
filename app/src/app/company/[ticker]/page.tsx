@@ -8,16 +8,6 @@ import { date, num, pct, tone } from "@/lib/format";
 
 const RANGES: Record<string, number> = { "1M": 31, "3M": 92, "1Y": 366, "3Y": 1100 };
 
-// Temporary: the API still returns Turkish labels (switched to English in the API PR).
-const SECTION_NAMES: Record<string, string> = {
-  "Pay sahipleri": "Shareholders",
-  "Kamuyu aydınlatma": "Disclosure & transparency",
-  "Menfaat sahipleri": "Stakeholders",
-  "Yönetim kurulu": "Board of directors",
-};
-const ZONES: Record<string, string> = { "güvenli": "safe", "gri": "grey", "sıkıntı": "distress" };
-const zoneName = (zone: string) => ZONES[zone.toLocaleLowerCase("tr")] ?? zone;
-
 function since(range: string): string {
   const days = RANGES[range] ?? RANGES["1Y"];
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
@@ -140,7 +130,7 @@ export default async function Company({
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <span className="mono" style={{ fontSize: 40, fontWeight: 600, color: "#8FB8FF" }}>{latestCredit.rating}</span>
-                <span className="pill" style={{ borderRadius: 999 }}>Altman zone: {zoneName(latestCredit.zone)}</span>
+                <span className="pill" style={{ borderRadius: 999 }}>Altman zone: {latestCredit.zone}</span>
               </div>
               <dl className="stats" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
                 <div><dt className="tag">Altman Z&apos;&apos;</dt><dd className="mono" style={{ margin: "4px 0 0" }}>{num(latestCredit.z)}</dd></div>
@@ -171,7 +161,7 @@ export default async function Company({
               {Object.entries(gov.sections).map(([name, score]) => (
                 <div key={name} style={{ display: "grid", gap: 4 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span>{SECTION_NAMES[name] ?? name}</span><span className="mono">{num(score, 1)}</span>
+                    <span>{name}</span><span className="mono">{num(score, 1)}</span>
                   </div>
                   <div className="bar"><div style={{ width: `${Math.min(score * 10, 100)}%` }} /></div>
                 </div>

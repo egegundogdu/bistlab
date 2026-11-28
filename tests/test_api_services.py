@@ -10,7 +10,7 @@ def test_quality_report_counts_and_filter() -> None:
     report = services.quality_report(FakeSource())
     assert sum(report.summary.values()) == 3
     only = services.quality_report(FakeSource(), issues_only=True)
-    assert all(s.status != "İyi" for s in only.series)
+    assert all(s.status != "Good" for s in only.series)
 
 
 def test_real_returns_includes_market_and_skips_unknown() -> None:

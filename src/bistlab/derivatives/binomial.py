@@ -34,15 +34,15 @@ def binomial_price(
     Amerikan tipte her düğümde erken kullanım değeri ile devam değerinin büyüğü alınır.
     """
     if steps < 1:
-        raise ValueError("Adım sayısı en az 1 olmalı.")
+        raise ValueError("Number of steps must be at least 1.")
     if spot <= 0 or strike <= 0 or years <= 0 or vol <= 0:
-        raise ValueError("Spot, kullanım fiyatı, vade ve volatilite pozitif olmalı.")
+        raise ValueError("Spot, strike, maturity and volatility must be positive.")
     dt = years / steps
     up = math.exp(vol * math.sqrt(dt))
     down = 1 / up
     p = (math.exp((rate - dividend_yield) * dt) - down) / (up - down)
     if not 0 < p < 1:
-        raise ValueError("Risk-nötr olasılık (0, 1) dışında; adım sayısını artır.")
+        raise ValueError("Risk-neutral probability outside (0, 1); increase the number of steps.")
     discount = math.exp(-rate * dt)
 
     j = np.arange(steps + 1, dtype=np.float64)

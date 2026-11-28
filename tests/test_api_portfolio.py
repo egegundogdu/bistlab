@@ -62,11 +62,11 @@ def test_weights_normalized_and_optimizers() -> None:
 
 def test_bad_inputs() -> None:
     src = Prices()
-    with pytest.raises(ValueError, match="iki hisse"):
+    with pytest.raises(ValueError, match="at least two"):
         portfolio.portfolio_risk(src, ["AAA", "YOK"], None, **KW)
-    with pytest.raises(ValueError, match="Ağırlık sayısı"):
+    with pytest.raises(ValueError, match="Number of weights"):
         portfolio.portfolio_risk(src, ["AAA", "BBB"], [1.0], **KW)
-    with pytest.raises(ValueError, match="negatif"):
+    with pytest.raises(ValueError, match="negative"):
         portfolio.portfolio_risk(src, ["AAA", "BBB"], [1.0, -1.0], **KW)
     with pytest.raises(ValueError):  # 3 hisse × 0,2 < 1: ağırlıklar 1'e tamamlanamaz
         portfolio.portfolio_risk(src, ["AAA", "BBB", "CCC"], None, **{**KW, "max_weight": 0.2})

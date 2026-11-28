@@ -20,10 +20,10 @@ from pathlib import Path
 import pandas as pd
 
 SECTION_WEIGHTS = {
-    "Pay sahipleri": 0.25,
-    "Kamuyu aydınlatma": 0.25,
-    "Menfaat sahipleri": 0.15,
-    "Yönetim kurulu": 0.35,
+    "Shareholders": 0.25,
+    "Disclosure & transparency": 0.25,
+    "Stakeholders": 0.15,
+    "Board of directors": 0.35,
 }
 EMPTY = {"", "-", "nan", "none"}
 

@@ -99,7 +99,7 @@ def quality_report(source: DataSource, issues_only: bool = False) -> QualityOut:
             status=q.status,
         )
         for q in results
-        if not (issues_only and q.status == "İyi")
+        if not (issues_only and q.status == "Good")
     ]
     return QualityOut(
         summary={status: sum(q.status == status for q in results) for status in STATUS_ORDER},
@@ -112,7 +112,7 @@ def _cpi_and_usd(source: DataSource) -> tuple[dict[dt.date, float], Points]:
     cpi = dict(source.macro(CPI_CODE))
     usd = source.macro(FX_CODES["USD"])
     if not cpi or not usd:
-        raise DataUnavailable("TÜFE ya da USD/TRY serisi yok")
+        raise DataUnavailable("No CPI or USD/TRY series")
     return cpi, usd
 
 

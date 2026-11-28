@@ -16,7 +16,7 @@ from bistlab.valuation.beta import beta, load_closes
 
 def _check_years(years: float) -> None:
     if years <= 0:
-        raise ValueError("Vade pozitif olmalı.")
+        raise ValueError("Maturity must be positive.")
 
 
 def theoretical_price(spot: float, years: float, rate: float, dividend_yield: float = 0.0) -> float:
@@ -58,7 +58,7 @@ def min_variance_hedge(
 def contracts_needed(notional: float, futures_price: float, multiplier: float) -> float:
     """Gereken kontrat sayısı = hedge nominali / (vadeli fiyat × kontrat çarpanı)."""
     if futures_price <= 0 or multiplier <= 0:
-        raise ValueError("Vadeli fiyat ve kontrat çarpanı pozitif olmalı.")
+        raise ValueError("Futures price and contract multiplier must be positive.")
     return notional / (futures_price * multiplier)
 
 
@@ -67,8 +67,8 @@ def main() -> None:
     parser.add_argument("tickers", nargs="+", help="Portföydeki hisseler (eşit ağırlık)")
     parser.add_argument("--value", type=float, default=1_000_000, help="Portföy değeri (TL)")
     parser.add_argument("--index", default="XU030", help="Vadelinin dayanak endeksi")
-    parser.add_argument("--days", type=int, default=60, help="Vadeye kalan takvim günü")
-    parser.add_argument("--rate", type=float, default=0.40, help="Yıllık efektif faiz")
+    parser.add_argument("--days", type=int, default=60, help="Calendar days to maturity")
+    parser.add_argument("--rate", type=float, default=0.40, help="Annual effective interest rate")
     parser.add_argument("--dividend-yield", type=float, default=0.0, help="Endeks temettü verimi")
     parser.add_argument("--years", type=int, default=1, help="Hedge oranı için kaç yıl veri")
     parser.add_argument("--multiplier", type=float, help="Kontrat çarpanı (VİOP'tan kontrol et)")

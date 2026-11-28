@@ -71,7 +71,7 @@ def valuate(
 ) -> Valuation:
     """`python -m bistlab.valuation.run` ile aynı hesap. Geçersiz girdide ValueError."""
     if currency != a.currency:
-        raise ValueError(f"Varsayım dosyası {a.currency}, veritabanı {currency} diyor.")
+        raise ValueError(f"Assumption file {a.currency}, database {currency} diyor.")
 
     cutoff = closes.index.max() - pd.Timedelta(days=BETA_WINDOW_DAYS)
     raw_beta = beta(
@@ -81,7 +81,7 @@ def valuate(
     if a.beta_override is not None:
         beta_value, beta_note = a.beta_override, "elle girildi"
     elif a.use_blume:
-        beta_value, beta_note = blume_adjust(raw_beta), "Blume düzeltmeli"
+        beta_value, beta_note = blume_adjust(raw_beta), "Blume-adjusted"
     else:
         beta_value, beta_note = raw_beta, "ham"
 
@@ -101,7 +101,7 @@ def valuate(
     rate = model_rate if wacc_override is None else wacc_override
     g = model_g if growth_override is None else growth_override
     if rate <= g:
-        raise ValueError("WACC uzun vadeli büyümeden büyük olmalı.")
+        raise ValueError("WACC must be greater than long-term growth.")
 
     flows = project_cash_flows(base_fcf, a.growth)
     result = dcf_value(flows, rate, g, net_debt, shares)

@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--ticker", help="Dayanak hisse; son fiyat ve tarihsel vol. buradan")
     parser.add_argument("--spot", type=float, help="Dayanak fiyatı (ticker yoksa zorunlu)")
     parser.add_argument("--strike", type=float, help="Kullanım fiyatı (varsayılan: spot)")
-    parser.add_argument("--days", type=int, default=180, help="Vadeye kalan takvim günü")
+    parser.add_argument("--days", type=int, default=180, help="Calendar days to maturity")
     parser.add_argument("--rate", type=float, default=0.40, help="Yıllık risksiz faiz (efektif)")
     parser.add_argument("--vol", type=float, help="Yıllık volatilite (ticker varsa tarihsel)")
     parser.add_argument("--steps", type=int, default=1000, help="Binom ağacı adım sayısı")

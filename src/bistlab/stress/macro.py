@@ -43,8 +43,8 @@ Array = npt.NDArray[np.float64]
 T_LIMIT = 2.0
 
 SCENARIOS: list[tuple[str, float, float]] = [
-    ("Kur şoku (XU100 −%10, USD/TRY +%20)", -0.10, 0.20),
-    ("Piyasa çöküşü (XU100 −%25, USD/TRY +%5)", -0.25, 0.05),
+    ("FX shock (XU100 −10%, USD/TRY +20%)", -0.10, 0.20),
+    ("Market crash (XU100 −25%, USD/TRY +5%)", -0.25, 0.05),
     ("Birlikte (XU100 −%20, USD/TRY +%30)", -0.20, 0.30),
 ]
 
