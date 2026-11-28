@@ -1,4 +1,4 @@
-"""Monte Carlo ile Avrupa tipi opsiyon fiyatlama (karşıt değişkenli varyans azaltma)."""
+"""Monte Carlo pricing of European options (antithetic variance reduction)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class McResult:
     std_error: float
 
     def confidence_interval(self, z: float = 1.96) -> tuple[float, float]:
-        """Varsayılan %95 güven aralığı."""
+        """Confidence interval, 95% by default."""
         return self.price - z * self.std_error, self.price + z * self.std_error
 
 
@@ -32,12 +32,12 @@ def monte_carlo_price(
     seed: int = 42,
     antithetic: bool = True,
 ) -> McResult:
-    """Vadedeki fiyatı geometrik Brown hareketiyle simüle eder, ödemeyi iskonto edip ortalar.
+    """Simulates terminal prices (geometric Brownian motion); averages the discounted payoff.
 
-    Karşıt değişkenler: her z için -z de kullanılır; bu, aynı yol sayısında hatayı azaltır.
+    Antithetic variates: each z is paired with -z, lowering the error for the same paths.
     """
     if paths < 2:
-        raise ValueError("En az 2 yol gerekli.")
+        raise ValueError("At least 2 paths are required.")
     rng = np.random.default_rng(seed)
     half = paths // 2
     z = rng.standard_normal(half if antithetic else paths)
@@ -53,7 +53,7 @@ def monte_carlo_price(
     discounted = math.exp(-rate * years) * payoff
 
     if antithetic:
-        samples = (discounted[:half] + discounted[half:]) / 2  # çift ortalamaları bağımsızdır
+        samples = (discounted[:half] + discounted[half:]) / 2  # pair means are independent
     else:
         samples = discounted
     price = float(np.mean(samples))

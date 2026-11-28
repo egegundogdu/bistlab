@@ -1,4 +1,4 @@
-"""Varsayım dosyası ve veritabanı verisiyle uçtan uca DCF değerlemesi."""
+"""End-to-end DCF valuation from an assumptions file and database data."""
 
 from __future__ import annotations
 
@@ -28,22 +28,22 @@ MARKET_INDEX = "XU100"
 
 
 def latest(items: pd.DataFrame, name: str) -> float:
-    """Kalemin en son dolu değeri."""
+    """Latest non-empty value of a line item."""
     return average_last(items, name, 1)
 
 
 def average_last(items: pd.DataFrame, name: str, years: int) -> float:
-    """Kalemin son `years` yıldaki dolu değerlerinin ortalaması."""
+    """Mean of the non-empty values of a line item over the last `years` years."""
     if name not in items.columns:
-        raise ValueError(f"'{name}' kalemi bulunamadı.")
+        raise ValueError(f"Line item '{name}' not found.")
     series = items[name].dropna().sort_index().tail(years)
     if series.empty:
-        raise ValueError(f"'{name}' kalemi boş.")
+        raise ValueError(f"Line item '{name}' is empty.")
     return float(series.mean())
 
 
 def project_cash_flows(base: float, growth: Sequence[float]) -> list[float]:
-    """Baz nakit akışını yıllık büyüme oranlarıyla ileriye taşır."""
+    """Grows the base cash flow forward with annual growth rates."""
     flows: list[float] = []
     value = base
     for g in growth:
@@ -55,10 +55,10 @@ def project_cash_flows(base: float, growth: Sequence[float]) -> list[float]:
 def adjust_for_leases(
     items: pd.DataFrame, base_fcf: float, total_debt: float, years: int
 ) -> tuple[float, float]:
-    """Kiralamayı faaliyet gideri gibi ele alır: (düzeltilmiş FCF, düzeltilmiş borç).
+    """Treats leases as an operating expense: (adjusted FCF, adjusted debt).
 
-    Yıllık kira ödemesi, kısa vadeli kira yükümlülüğü ile yaklaşık olarak FCF'den düşülür;
-    kira yükümlülükleri de borçtan çıkarılır. Böylece nakit akışı ile borç tutarlı olur.
+    The annual lease payment, approximated by the current lease liability, is deducted from FCF;
+    lease liabilities are removed from debt, so cash flow and debt stay consistent.
     """
     lease_payment = average_last(items, "Current Capital Lease Obligation", years)
     lease_liabilities = latest(items, "Capital Lease Obligations")
@@ -68,10 +68,10 @@ def adjust_for_leases(
 def cost_of_capital(
     a: Assumptions, equity_value: float, debt_value: float, beta_value: float
 ) -> tuple[float, float]:
-    """(özkaynak maliyeti, WACC), raporlama para biriminde.
+    """(cost of equity, WACC) in the reporting currency.
 
-    Özkaynak maliyeti önce USD bazlı CAPM ile bulunur; şirket TL raporluyorsa
-    enflasyon farkıyla TL'ye çevrilir.
+    The cost of equity comes from a USD-based CAPM; for companies reporting in TRY it is
+    converted to TRY with the inflation differential.
     """
     ke_usd = capm_cost_of_equity(a.usd_risk_free, beta_value, a.equity_risk_premium)
     if a.currency == "USD":
@@ -82,7 +82,7 @@ def cost_of_capital(
 
 
 def terminal_growth(a: Assumptions) -> float:
-    """Nominal terminal büyüme = (1 + reel büyüme) × (1 + uzun vadeli enflasyon) - 1."""
+    """Nominal terminal growth = (1 + real growth) × (1 + long-term inflation) - 1."""
     inflation = a.us_inflation if a.currency == "USD" else a.local_inflation
     return (1 + a.terminal_real_growth) * (1 + inflation) - 1
 
@@ -96,9 +96,9 @@ def implied_growth(
     shares: float,
     target_per_share: float,
 ) -> float | None:
-    """Ters DCF: hedef hisse değerini veren sabit yıllık FCF büyümesi (ikiye bölme).
+    """Reverse DCF: constant annual FCF growth that gives the target value per share (bisection).
 
-    Baz FCF pozitif değilse ya da çözüm [-%50, +%300] aralığında yoksa None döner.
+    Returns None when the base FCF is not positive or there is no solution in [-50%, +300%].
     """
     if base_fcf <= 0:
         return None
@@ -122,7 +122,7 @@ def implied_growth(
 
 
 def latest_macro(session: Session, code: str) -> float:
-    """Bir makro serinin en son değeri."""
+    """Latest value of a macro series."""
     query = (
         select(MacroObservation.value)
         .where(MacroObservation.code == code)
@@ -131,17 +131,17 @@ def latest_macro(session: Session, code: str) -> float:
     )
     value = session.scalar(query)
     if value is None:
-        raise ValueError(f"{code} için veri yok. Önce bistlab.data.evds çalıştır.")
+        raise ValueError(f"No data for {code}. Run bistlab.data.evds first.")
     return float(value)
 
 
 def _bn(value: float) -> str:
-    return f"{value / 1e9:,.1f} mr"
+    return f"{value / 1e9:,.1f} bn"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Varsayım dosyasıyla DCF değerlemesi yapar.")
-    parser.add_argument("ticker", help="Hisse kodu; assumptions/<KOD>.toml olmalı")
+    parser = argparse.ArgumentParser(description="DCF valuation from an assumptions file.")
+    parser.add_argument("ticker", help="Ticker; assumptions/<TICKER>.toml must exist")
     args = parser.parse_args()
 
     a = assumptions_file.load(args.ticker)
@@ -151,7 +151,7 @@ def main() -> None:
         market = load_closes(session, MARKET_INDEX)
         usd_try = latest_macro(session, USD_TRY)
     if currency != a.currency:
-        raise ValueError(f"Varsayım dosyası {a.currency}, veritabanı {currency} diyor.")
+        raise ValueError(f"Assumption file says {a.currency}, database says {currency}.")
 
     cutoff = closes.index.max() - pd.Timedelta(days=730)
     raw_beta = beta(
@@ -159,11 +159,11 @@ def main() -> None:
         weekly_returns(market[market.index >= cutoff]),
     )
     if a.beta_override is not None:
-        beta_value, beta_note = a.beta_override, "elle girildi"
+        beta_value, beta_note = a.beta_override, "manual"
     elif a.use_blume:
-        beta_value, beta_note = blume_adjust(raw_beta), "Blume düzeltmeli"
+        beta_value, beta_note = blume_adjust(raw_beta), "Blume-adjusted"
     else:
-        beta_value, beta_note = raw_beta, "ham"
+        beta_value, beta_note = raw_beta, "raw"
 
     to_try = 1.0 if a.currency == "TRY" else usd_try
     price_try = float(closes.iloc[-1])
@@ -183,23 +183,24 @@ def main() -> None:
     value_try = result.per_share * to_try
     cur = a.currency
 
-    print(f"{a.ticker} | raporlama para birimi: {cur}\n")
-    print(f"Beta: ham {raw_beta:.2f} → kullanılan {beta_value:.2f} ({beta_note})")
-    print(f"Özkaynak maliyeti: {ke:.1%} | WACC: {rate:.1%} | Terminal büyüme: {g:.1%}")
-    lease_note = "kiralama düzeltmeli" if a.lease_adjusted else "kiralama düzeltmesiz"
-    print(f"Baz FCF (son {a.base_fcf_years} yıl ort., {lease_note}): {_bn(base_fcf)} {cur}")
-    print(f"Firma değeri: {_bn(result.enterprise_value)} {cur} | Net borç: {_bn(net_debt)} {cur}")
-    print(f"Terminal değerin payı: {result.terminal_share:.0%}")
-    print(f"\nHisse başı değer: {value_try:,.2f} TL | Son fiyat: {price_try:,.2f} TL", end="")
-    print(f" | Fark: {value_try / price_try - 1:+.0%}")
+    print(f"{a.ticker} | reporting currency: {cur}\n")
+    print(f"Beta: raw {raw_beta:.2f} → used {beta_value:.2f} ({beta_note})")
+    print(f"Cost of equity: {ke:.1%} | WACC: {rate:.1%} | Terminal growth: {g:.1%}")
+    lease_note = "lease-adjusted" if a.lease_adjusted else "not lease-adjusted"
+    print(f"Base FCF ({a.base_fcf_years}-year avg., {lease_note}): {_bn(base_fcf)} {cur}")
+    print(f"Enterprise value: {_bn(result.enterprise_value)} {cur}", end="")
+    print(f" | Net debt: {_bn(net_debt)} {cur}")
+    print(f"Terminal value share: {result.terminal_share:.0%}")
+    print(f"\nValue per share: {value_try:,.2f} TRY | Last price: {price_try:,.2f} TRY", end="")
+    print(f" | Upside: {value_try / price_try - 1:+.0%}")
 
     implied = implied_growth(base_fcf, len(a.growth), rate, g, net_debt, shares, price_try / to_try)
     if implied is None:
-        print("Ters DCF: çözüm yok (baz FCF negatif ya da aralık dışında).")
+        print("Reverse DCF: no solution (negative base FCF or out of range).")
     else:
         print(
-            f"Ters DCF: Bugünkü fiyat, {len(a.growth)} yıl boyunca yıllık "
-            f"%{implied * 100:.1f} FCF büyümesi varsayıyor ({cur} bazında)."
+            f"Reverse DCF: the current price implies {implied * 100:.1f}% annual FCF growth "
+            f"for {len(a.growth)} years (in {cur})."
         )
 
     rates = [rate + d for d in (-0.02, -0.01, 0.0, 0.01, 0.02)]
@@ -207,9 +208,9 @@ def main() -> None:
     table = sensitivity_table(flows, net_debt, shares, rates, growths) * to_try
     table.index = [f"WACC {r:.1%}" for r in rates]
     table.columns = [f"g {x:.1%}" for x in growths]
-    print("\nDuyarlılık (TL / hisse):")
+    print("\nSensitivity (TRY per share):")
     print(table.round(2).to_string())
-    print("\nEğitim amaçlıdır; yatırım tavsiyesi değildir.")
+    print("\nFor education; not investment advice.")
 
 
 if __name__ == "__main__":

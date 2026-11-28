@@ -1,4 +1,4 @@
-"""Cox-Ross-Rubinstein binom ağacı: Avrupa ve Amerikan tipi opsiyon fiyatlama."""
+"""Cox-Ross-Rubinstein binomial tree: European and American option pricing."""
 
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ def binomial_price(
     steps: int = 500,
     american: bool = False,
 ) -> float:
-    """CRR ağacı: u = e^(σ√Δt), d = 1/u, risk-nötr olasılık p = (e^((r-q)Δt) - d) / (u - d).
+    """CRR tree: u = e^(σ√Δt), d = 1/u, risk-neutral p = (e^((r-q)Δt) - d) / (u - d).
 
-    Amerikan tipte her düğümde erken kullanım değeri ile devam değerinin büyüğü alınır.
+    For American options each node takes the larger of exercise and continuation value.
     """
     if steps < 1:
         raise ValueError("Number of steps must be at least 1.")

@@ -1,4 +1,4 @@
-"""Yürüyen pencereli (walk-forward) portföy backtest motoru."""
+"""Walk-forward portfolio backtest engine."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ from bistlab.portfolio.risk import (
 )
 from bistlab.valuation.beta import load_closes
 
-# Strateji: geçmiş getiri penceresinden hedef ağırlıkları üretir
+# Strategy: produces target weights from a window of past returns
 Strategy = Callable[[pd.DataFrame], Vector]
 
 
 @dataclass(frozen=True)
 class BacktestResult:
     returns: pd.Series[float]
-    average_turnover: float  # ilk alım hariç, yeniden dengeleme başına ortalama devir
+    average_turnover: float  # mean turnover per rebalance, excluding the initial purchase
 
 
 def run_backtest(
@@ -38,13 +38,13 @@ def run_backtest(
     rebalance_every: int = 21,
     cost: float = 0.002,
 ) -> BacktestResult:
-    """Her `rebalance_every` günde, sadece önceki `lookback` günü görerek yeniden dengeler.
+    """Rebalances every `rebalance_every` days, seeing only the previous `lookback` days.
 
-    Yeniden dengelemeler arasında ağırlıklar fiyatlarla birlikte kayar.
-    İşlem maliyeti = cost × Σ|yeni ağırlık - kaymış ağırlık|, o günün getirisinden düşülür.
+    Between rebalances the weights drift with prices.
+    Transaction cost = cost × Σ|new weight - drifted weight|, deducted from that day's return.
     """
     if len(returns) <= lookback:
-        raise ValueError("Backtest için geriye bakış penceresinden uzun veri gerekli.")
+        raise ValueError("Backtest needs more data than the lookback window.")
     values = returns.to_numpy(dtype=float)
     weights: Vector = np.zeros(values.shape[1], dtype=np.float64)
     daily: list[float] = []
@@ -69,7 +69,7 @@ def run_backtest(
 
 
 def equal_weight(window: pd.DataFrame) -> Vector:
-    """Her hisseye eşit ağırlık (1/N)."""
+    """Equal weight for every stock (1/N)."""
     n = window.shape[1]
     return np.asarray(np.full(n, 1.0 / n), dtype=np.float64)
 
@@ -88,29 +88,31 @@ def max_sharpe_strategy(risk_free: float, max_weight: float) -> Strategy:
         try:
             return max_sharpe(mu, cov, risk_free, max_weight).weights
         except RuntimeError:
-            return equal_weight(window)  # optimizasyon yakınsamazsa eşit ağırlığa düş
+            return equal_weight(window)  # fall back to equal weight if the optimiser fails
 
     return strategy
 
 
 def metrics(result: pd.Series[float], risk_free: float) -> dict[str, float]:
     return {
-        "Yıllık getiri %": annualized_return(result) * 100,
-        "Oynaklık %": annualized_volatility(result) * 100,
+        "Annual return %": annualized_return(result) * 100,
+        "Volatility %": annualized_volatility(result) * 100,
         "Sharpe": sharpe_ratio(result, risk_free),
-        "Maks. düşüş %": max_drawdown(result) * 100,
+        "Max drawdown %": max_drawdown(result) * 100,
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Stratejileri örneklem dışı karşılaştırır.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları")
-    parser.add_argument("--benchmark", default="XU100", help="Kıyas endeksi")
-    parser.add_argument("--lookback", type=int, default=252, help="Geriye bakış (işlem günü)")
-    parser.add_argument("--rebalance", type=int, default=21, help="Yeniden dengeleme sıklığı")
-    parser.add_argument("--cost", type=float, default=0.002, help="İşlem maliyeti (devir başına)")
-    parser.add_argument("--max-weight", type=float, default=0.35, help="Tek hisse üst sınırı")
-    parser.add_argument("--risk-free", type=float, default=0.0, help="Yıllık risksiz faiz")
+    parser = argparse.ArgumentParser(description="Out-of-sample comparison of strategies.")
+    parser.add_argument("tickers", nargs="+", help="Tickers")
+    parser.add_argument("--benchmark", default="XU100", help="Benchmark index")
+    parser.add_argument("--lookback", type=int, default=252, help="Lookback (trading days)")
+    parser.add_argument("--rebalance", type=int, default=21, help="Rebalance frequency (days)")
+    parser.add_argument(
+        "--cost", type=float, default=0.002, help="Transaction cost (per unit of turnover)"
+    )
+    parser.add_argument("--max-weight", type=float, default=0.35, help="Max weight per stock")
+    parser.add_argument("--risk-free", type=float, default=0.0, help="Annual risk-free rate")
     args = parser.parse_args()
 
     tickers = [t.upper() for t in args.tickers]
@@ -123,27 +125,27 @@ def main() -> None:
     assets = returns[tickers]
 
     strategies: dict[str, Strategy] = {
-        "Eşit ağırlık": equal_weight,
-        "Min. varyans": min_variance_strategy(args.max_weight),
-        "Maks. Sharpe": max_sharpe_strategy(args.risk_free, args.max_weight),
+        "Equal weight": equal_weight,
+        "Min. variance": min_variance_strategy(args.max_weight),
+        "Max. Sharpe": max_sharpe_strategy(args.risk_free, args.max_weight),
     }
     rows: dict[str, dict[str, float]] = {}
     for name, strategy in strategies.items():
         result = run_backtest(assets, strategy, args.lookback, args.rebalance, args.cost)
         rows[name] = metrics(result.returns, args.risk_free)
-        rows[name]["Ort. devir %"] = result.average_turnover * 100
+        rows[name]["Avg. turnover %"] = result.average_turnover * 100
     bench = returns[benchmark].iloc[args.lookback :]
-    rows[f"{benchmark} (kıyas)"] = metrics(bench, args.risk_free)
-    rows[f"{benchmark} (kıyas)"]["Ort. devir %"] = 0.0
+    rows[f"{benchmark} (benchmark)"] = metrics(bench, args.risk_free)
+    rows[f"{benchmark} (benchmark)"]["Avg. turnover %"] = 0.0
 
     start, end = bench.index.min().date(), bench.index.max().date()
-    print(f"Örneklem dışı dönem: {start} → {end} ({len(bench)} işlem günü), TL nominal")
+    print(f"Out-of-sample period: {start} → {end} ({len(bench)} trading days), nominal TRY")
     print(
-        f"Geriye bakış: {args.lookback} gün | Yeniden dengeleme: {args.rebalance} günde bir | "
-        f"İşlem maliyeti: %{args.cost * 100:.2f} | Üst sınır: %{args.max_weight * 100:.0f}\n"
+        f"Lookback: {args.lookback} days | Rebalance: every {args.rebalance} days | "
+        f"Transaction cost: {args.cost * 100:.2f}% | Max weight: {args.max_weight * 100:.0f}%\n"
     )
     print(pd.DataFrame(rows).T.round(2).to_string())
-    print("\nHisse listesi bugünden bakılarak seçildi; seçim yanlılığı sonuçları iyimser gösterir.")
+    print("\nTickers were picked with hindsight; selection bias flatters the results.")
 
 
 if __name__ == "__main__":

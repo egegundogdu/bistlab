@@ -1,7 +1,7 @@
-"""Uçtan uca DCF hesabı, saf fonksiyon olarak (CLI `run.main` ile aynı adımlar).
+"""End-to-end DCF as a pure function (same steps as the `run.main` CLI).
 
-API ve arayüz bunu kullanır: veriyi çağıran sağlar, burada ağ ya da veritabanı yok.
-WACC ve uzun vadeli büyüme isteğe bağlı olarak dışarıdan verilebilir (arayüzdeki sürgüler).
+Used by the API and the UI: the caller supplies the data; no network or database here.
+WACC and long-term growth can optionally be overridden (the sliders in the UI).
 """
 
 from __future__ import annotations
@@ -69,9 +69,9 @@ def valuate(
     wacc_override: float | None = None,
     growth_override: float | None = None,
 ) -> Valuation:
-    """`python -m bistlab.valuation.run` ile aynı hesap. Geçersiz girdide ValueError."""
+    """Same calculation as `python -m bistlab.valuation.run`. ValueError on invalid input."""
     if currency != a.currency:
-        raise ValueError(f"Assumption file {a.currency}, database {currency} diyor.")
+        raise ValueError(f"Assumption file says {a.currency}, database says {currency}.")
 
     cutoff = closes.index.max() - pd.Timedelta(days=BETA_WINDOW_DAYS)
     raw_beta = beta(
@@ -79,11 +79,11 @@ def valuate(
         weekly_returns(market[market.index >= cutoff]),
     )
     if a.beta_override is not None:
-        beta_value, beta_note = a.beta_override, "elle girildi"
+        beta_value, beta_note = a.beta_override, "manual"
     elif a.use_blume:
         beta_value, beta_note = blume_adjust(raw_beta), "Blume-adjusted"
     else:
-        beta_value, beta_note = raw_beta, "ham"
+        beta_value, beta_note = raw_beta, "raw"
 
     to_try = 1.0 if a.currency == "TRY" else usd_try
     price_try = float(closes.iloc[-1])

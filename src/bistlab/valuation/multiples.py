@@ -1,4 +1,4 @@
-"""Piyasa çarpanları (F/K, PD/DD, FD/FAVÖK, FCF getirisi) ve şirketler arası karşılaştırma."""
+"""Market multiples (P/E, P/B, EV/EBITDA, FCF yield) and cross-company comparison."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from bistlab.valuation.beta import load_closes
 from bistlab.valuation.report import load_items
 from bistlab.valuation.run import latest, latest_macro
 
-# Raporlama para birimini TL'ye çeviren EVDS serileri
+# EVDS series that convert the reporting currency to TRY
 FX_SERIES = {"USD": "TP.DK.USD.A.YTL", "EUR": "TP.DK.EUR.A.YTL"}
 
 
@@ -29,7 +29,7 @@ class Multiples:
 
 
 def _value(items: pd.DataFrame, name: str, default: float = float("nan")) -> float:
-    """Kalemin son değeri; kalem yoksa varsayılan değer."""
+    """Latest value of a line item; the default when the item is missing."""
     try:
         return latest(items, name)
     except ValueError:
@@ -37,14 +37,14 @@ def _value(items: pd.DataFrame, name: str, default: float = float("nan")) -> flo
 
 
 def _ratio(numerator: float, denominator: float) -> float:
-    """Payda pozitif değilse (zarar, negatif özkaynak) çarpan anlamsızdır: NaN."""
+    """NaN when the denominator is not positive (loss, negative equity): meaningless."""
     return numerator / denominator if denominator > 0 else float("nan")
 
 
 def compute_multiples(
     ticker: str, currency: str, price_try: float, fx_to_try: float, items: pd.DataFrame
 ) -> Multiples:
-    """Son yıllık finansallar ve güncel fiyatla çarpanları raporlama para biriminde hesaplar."""
+    """Multiples in the reporting currency from the latest annual financials and price."""
     shares = latest(items, "Ordinary Shares Number")
     market_cap = price_try * shares / fx_to_try
     net_debt = _value(items, "Total Debt", 0.0) - _value(items, "Cash And Cash Equivalents", 0.0)
@@ -61,8 +61,8 @@ def compute_multiples(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Şirketlerin çarpanlarını karşılaştırır.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları, ör. THYAO PGSUS ASELS")
+    parser = argparse.ArgumentParser(description="Compare company multiples.")
+    parser.add_argument("tickers", nargs="+", help="Tickers, e.g. THYAO PGSUS ASELS")
     args = parser.parse_args()
 
     results: list[Multiples] = []
@@ -74,11 +74,11 @@ def main() -> None:
             results.append(compute_multiples(ticker.upper(), currency, price_try, fx_to_try, items))
 
     table = pd.DataFrame([asdict(m) for m in results]).set_index("ticker")
-    table.columns = ["Para birimi", "Piyasa değeri (mr TL)", "F/K", "PD/DD", "FD/FAVÖK", "FCF get."]
-    numeric = table.drop(columns=["Para birimi"])
+    table.columns = ["Currency", "Market cap (bn TRY)", "P/E", "P/B", "EV/EBITDA", "FCF yield"]
+    numeric = table.drop(columns=["Currency"])
     print(table.round(2).to_string())
-    print(f"\nMedyan: {numeric.median().round(2).to_dict()}")
-    print("\nSon yıllık finansallar kullanıldı; NaN = zarar ya da negatif payda (anlamsız çarpan).")
+    print(f"\nMedian: {numeric.median().round(2).to_dict()}")
+    print("\nLatest annual financials; NaN = loss or negative denominator (meaningless).")
 
 
 if __name__ == "__main__":

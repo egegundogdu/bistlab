@@ -1,4 +1,4 @@
-"""Markowitz ortalama-varyans optimizasyonu ve etkin sınır."""
+"""Markowitz mean-variance optimisation and the efficient frontier."""
 
 from __future__ import annotations
 
@@ -31,14 +31,14 @@ class Portfolio:
 
 
 def annual_stats(returns: pd.DataFrame, periods: int = TRADING_DAYS) -> tuple[Vector, Vector]:
-    """Yıllık beklenen getiri vektörü (aritmetik ortalama × 252) ve kovaryans matrisi."""
+    """Annual expected return vector (arithmetic mean × 252) and covariance matrix."""
     mu = np.asarray(returns.mean().to_numpy(dtype=float) * periods, dtype=np.float64)
     cov = np.asarray(returns.cov().to_numpy(dtype=float) * periods, dtype=np.float64)
     return mu, cov
 
 
 def performance(weights: Vector, mu: Vector, cov: Vector) -> Portfolio:
-    """Ağırlıklardan portföyün beklenen getirisi ve oynaklığı."""
+    """Expected return and volatility of a portfolio from its weights."""
     expected = float(weights @ mu)
     volatility = float(np.sqrt(weights @ cov @ weights))
     return Portfolio(np.asarray(weights, dtype=np.float64), expected, volatility)
@@ -50,9 +50,11 @@ def _solve(
     max_weight: float,
     constraints: list[dict[str, Any]] | None = None,
 ) -> Vector:
-    """Ağırlık toplamı 1, her ağırlık [0, max_weight] koşuluyla hedefi en aza indirir."""
+    """Minimises the objective with weights summing to 1, each in [0, max_weight]."""
     if max_weight * n < 1 - 1e-9:
-        raise ValueError("Üst sınır × hisse sayısı en az 1 olmalı; ağırlıklar 1'e tamamlanamaz.")
+        raise ValueError(
+            "Max weight × number of stocks must be at least 1; weights cannot sum to 1."
+        )
     cons: list[dict[str, Any]] = [{"type": "eq", "fun": lambda w: float(np.sum(w)) - 1.0}]
     cons += constraints or []
     start = np.asarray(np.full(n, 1.0 / n), dtype=np.float64)
@@ -60,13 +62,13 @@ def _solve(
         objective, start, method="SLSQP", bounds=[(0.0, max_weight)] * n, constraints=cons
     )
     if not result.success:
-        raise RuntimeError(f"Optimizasyon başarısız: {result.message}")
+        raise RuntimeError(f"Optimisation failed: {result.message}")
     weights = np.clip(np.asarray(result.x, dtype=np.float64), 0.0, None)
     return np.asarray(weights / weights.sum(), dtype=np.float64)
 
 
 def min_variance(mu: Vector, cov: Vector, max_weight: float = 1.0) -> Portfolio:
-    """En düşük oynaklıklı portföy."""
+    """Lowest-volatility portfolio."""
     weights = _solve(lambda w: float(w @ cov @ w), len(mu), max_weight)
     return performance(weights, mu, cov)
 
@@ -74,7 +76,7 @@ def min_variance(mu: Vector, cov: Vector, max_weight: float = 1.0) -> Portfolio:
 def max_sharpe(
     mu: Vector, cov: Vector, risk_free: float = 0.0, max_weight: float = 1.0
 ) -> Portfolio:
-    """Sharpe oranı en yüksek (teğet) portföy."""
+    """Highest-Sharpe (tangency) portfolio."""
 
     def negative_sharpe(w: Vector) -> float:
         p = performance(w, mu, cov)
@@ -84,7 +86,7 @@ def max_sharpe(
 
 
 def max_return(mu: Vector, cov: Vector, max_weight: float = 1.0) -> Portfolio:
-    """Üst sınır altında en yüksek getiri: en iyi hisseleri sırayla sınıra kadar doldurur."""
+    """Highest return under the cap: fills the best stocks up to the cap, in order."""
     weights = np.zeros(len(mu), dtype=np.float64)
     remaining = 1.0
     for i in np.argsort(mu)[::-1]:
@@ -99,7 +101,7 @@ def max_return(mu: Vector, cov: Vector, max_weight: float = 1.0) -> Portfolio:
 def efficient_frontier(
     mu: Vector, cov: Vector, points: int = 8, max_weight: float = 1.0
 ) -> list[Portfolio]:
-    """Minimum varyanstan en yüksek getiriye: her hedef getiri için en düşük riskli portföy."""
+    """From min variance to max return: the lowest-risk portfolio for each target return."""
     low = min_variance(mu, cov, max_weight)
     high = max_return(mu, cov, max_weight)
     frontier = [low]
@@ -112,12 +114,12 @@ def efficient_frontier(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Markowitz optimizasyonu ve etkin sınır.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları")
-    parser.add_argument("--years", type=int, default=2, help="Kaç yıllık veri (varsayılan 2)")
-    parser.add_argument("--risk-free", type=float, default=0.0, help="Yıllık risksiz faiz")
-    parser.add_argument("--max-weight", type=float, default=0.35, help="Tek hisse üst sınırı")
-    parser.add_argument("--points", type=int, default=8, help="Etkin sınır nokta sayısı")
+    parser = argparse.ArgumentParser(description="Markowitz optimisation and efficient frontier.")
+    parser.add_argument("tickers", nargs="+", help="Tickers")
+    parser.add_argument("--years", type=int, default=2, help="Years of data (default 2)")
+    parser.add_argument("--risk-free", type=float, default=0.0, help="Annual risk-free rate")
+    parser.add_argument("--max-weight", type=float, default=0.35, help="Max weight per stock")
+    parser.add_argument("--points", type=int, default=8, help="Number of frontier points")
     args = parser.parse_args()
 
     tickers = [t.upper() for t in args.tickers]
@@ -129,9 +131,9 @@ def main() -> None:
 
     n = len(tickers)
     portfolios = {
-        "Eşit ağırlık": performance(np.full(n, 1.0 / n), mu, cov),
-        "Min. varyans": min_variance(mu, cov, args.max_weight),
-        "Maks. Sharpe": max_sharpe(mu, cov, args.risk_free, args.max_weight),
+        "Equal weight": performance(np.full(n, 1.0 / n), mu, cov),
+        "Min. variance": min_variance(mu, cov, args.max_weight),
+        "Max. Sharpe": max_sharpe(mu, cov, args.risk_free, args.max_weight),
     }
 
     weights = pd.DataFrame({k: p.weights * 100 for k, p in portfolios.items()}, index=tickers)
@@ -140,22 +142,22 @@ def main() -> None:
             k: [p.expected_return * 100, p.volatility * 100, p.sharpe(args.risk_free)]
             for k, p in portfolios.items()
         },
-        index=["Beklenen getiri %", "Oynaklık %", "Sharpe"],
+        index=["Expected return %", "Volatility %", "Sharpe"],
     )
     start, end = returns.index.min().date(), returns.index.max().date()
-    print(f"Dönem: {start} → {end} ({len(returns)} gün), TL nominal, aritmetik yıllık ortalama")
-    print(f"Tek hisse üst sınırı: %{args.max_weight * 100:.0f} | Risksiz faiz: ", end="")
-    print(f"%{args.risk_free * 100:.1f}\n")
-    print("Ağırlıklar (%):")
+    print(f"Period: {start} → {end} ({len(returns)} days), nominal TRY, arithmetic annual mean")
+    print(f"Max weight per stock: {args.max_weight * 100:.0f}% | Risk-free rate: ", end="")
+    print(f"{args.risk_free * 100:.1f}%\n")
+    print("Weights (%):")
     print(weights.round(1).to_string())
     print()
     print(summary.round(2).to_string())
 
     frontier = efficient_frontier(mu, cov, args.points, args.max_weight)
     rows = [(p.volatility * 100, p.expected_return * 100) for p in frontier]
-    print("\nEtkin sınır:")
-    print(pd.DataFrame(rows, columns=["Oynaklık %", "Getiri %"]).round(2).to_string(index=False))
-    print("\nGeçmiş getiriler geleceğin tahmini değildir; sonuçlar girdilere çok duyarlıdır.")
+    print("\nEfficient frontier:")
+    print(pd.DataFrame(rows, columns=["Volatility %", "Return %"]).round(2).to_string(index=False))
+    print("\nPast returns do not predict future returns; results are very sensitive to inputs.")
 
 
 if __name__ == "__main__":
