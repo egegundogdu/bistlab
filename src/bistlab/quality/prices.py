@@ -1,21 +1,21 @@
-"""Fiyat serileri için veri kalitesi: eksik gün, bayatlık, sıçrama, geçici son gün.
+"""Data quality for price series: missing days, staleness, jumps, provisional last bar.
 
-BIST serileri XU100'ün işlem takvimine göre denetlenir. Yabancı borsa serileri (fon
-röntgenindeki yurt dışı hisseler) farklı tatil takvimine sahip olduğu için iş günü
-boşluklarına bakılır: art arda 3'ten fazla iş günü yoksa eksik sayılır.
+BIST series are checked against the XU100 trading calendar. Foreign series (overseas stocks
+in the fund x-ray) follow other holiday calendars, so business-day gaps are checked instead:
+more than 3 consecutive missing business days count as missing.
 
-Son çubuk, tarihinden sonraki bir günde (İstanbul saatiyle) çekilmediyse "geçici"dir:
-Yahoo o günün çubuğunu sonradan geri çekebilir ya da değiştirebilir (25 Kas 2026 olayı).
-Geçicilik durumu bozmaz; ayrı sütunda gösterilir.
+The last bar is "provisional" unless it was fetched on a later day (Istanbul time): Yahoo can
+later withdraw or change that day's bar (the 25 Nov 2026 incident). Provisional status does
+not affect the verdict; it is shown in its own column.
 
-Sıçramalar ikiye ayrılır. "Şüpheli" olanlar durumu etkiler: oran bir bölünme / bedelsiz
-katsayısına (×2, ×3, ×5, ×10 ... ya da tersi) ±%1,5 yakınsa ya da en az %50'lik bir
-sıçramadan sonra fiyat 3 işlem günü içinde eski seviyesine dönüyorsa (tek günlük hatalı
-fiyat). Diğerleri oynaklıktır; sadece sayılır.
+Jumps fall into two groups. "Suspicious" ones affect the status: the price ratio is within
+±1.5% of a split or bonus-issue factor (×2, ×3, ×5, ×10 ... or the inverse), or after a jump
+of at least 50% the price returns to its previous level within 3 trading days (a one-day bad
+print). The rest are volatility and are only counted.
 
-Donuk fiyat: art arda FLAT_RUN işlem günü aynı kapanış. Genelde işlem durdurma ya da
-sağlayıcının son fiyatı tekrar yazmasıdır; getiri ve risk hesaplarında sahte "sıfır
-oynaklık" yaratır (SOL.MC: 2024–2025 boyunca 1,598).
+Flat price: the same close for FLAT_RUN consecutive trading days. Usually a trading halt or
+the provider repeating the last price; it creates fake "zero volatility" in return and risk
+calculations (SOL.MC: 1.598 throughout 2024–2025).
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ SPIKE_MIN = 0.5
 SPIKE_WINDOW = 3
 SPIKE_RETURN = 0.10
 FLAT_RUN = 10
-FOREIGN_LAG = 1  # yabancı borsa: saat farkı ve tatil yüzünden 1 iş günü gecikme normal
+FOREIGN_LAG = 1  # foreign exchanges: a 1-business-day lag is normal (time zones, holidays)
 BIST_SHARE = 0.99
 FOREIGN_GAP_BUSDAYS = 3
 STALE_LIMIT = 3
@@ -89,7 +89,7 @@ def valid_close(close: float | None) -> bool:
 
 
 def is_provisional(bar: Bar) -> bool:
-    """Çubuk, tarihinden sonraki bir günde çekilmemişse geçicidir."""
+    """A bar is provisional unless it was fetched on a day after its date."""
     if bar.fetched_at is None:
         return True
     fetched = bar.fetched_at
@@ -107,7 +107,7 @@ def valid_points(bars: list[Bar]) -> list[tuple[dt.date, float]]:
 
 
 def find_jumps(bars: list[Bar], threshold: float = JUMP_THRESHOLD) -> list[tuple[dt.date, float]]:
-    """Mutlak günlük getirisi eşiği aşan günler."""
+    """Days whose absolute daily return exceeds the threshold."""
     points = valid_points(bars)
     jumps = []
     for (_, before), (day, close) in zip(points, points[1:], strict=False):
@@ -118,7 +118,7 @@ def find_jumps(bars: list[Bar], threshold: float = JUMP_THRESHOLD) -> list[tuple
 
 
 def split_like(change: float, tolerance: float = SPLIT_TOLERANCE) -> bool:
-    """Fiyat oranı bir bölünme / bedelsiz katsayısına ya da tersine çok yakın mı."""
+    """Is the price ratio very close to a split or bonus-issue factor (or its inverse)?"""
     ratio = 1 + change
     return any(
         abs(ratio / factor - 1) < tolerance or abs(ratio * factor - 1) < tolerance
@@ -127,7 +127,7 @@ def split_like(change: float, tolerance: float = SPLIT_TOLERANCE) -> bool:
 
 
 def suspicious_jumps(bars: list[Bar]) -> list[tuple[dt.date, float, str]]:
-    """Veri hatası şüphesi taşıyan sıçramalar: bölünme oranı ya da geri dönen tek gün."""
+    """Jumps that suggest a data error: a split ratio, or a one-day move that reverts."""
     points = valid_points(bars)
     found = []
     for index in range(1, len(points)):
@@ -148,7 +148,7 @@ def suspicious_jumps(bars: list[Bar]) -> list[tuple[dt.date, float, str]]:
 
 
 def longest_flat_run(bars: list[Bar]) -> int:
-    """Art arda aynı kapanışın en uzun tekrar sayısı (1 = hiç tekrar yok)."""
+    """Longest run of identical consecutive closes (1 = no repeats)."""
     longest = current = 0
     previous: float | None = None
     for _, close in valid_points(bars):
@@ -171,7 +171,7 @@ def calendar_missing(dates: list[dt.date], calendar: list[dt.date]) -> list[dt.d
 
 
 def business_gaps(dates: list[dt.date]) -> list[dt.date]:
-    """Art arda FOREIGN_GAP_BUSDAYS'ten fazla iş günü boşluğu olan yerlerdeki günler."""
+    """Days inside gaps longer than FOREIGN_GAP_BUSDAYS consecutive business days."""
     missing: list[dt.date] = []
     for previous, current in zip(dates, dates[1:], strict=False):
         start = np.datetime64(previous, "D") + np.timedelta64(1, "D")
@@ -201,7 +201,7 @@ def assess(ticker: str, bars: list[Bar], calendar: list[dt.date]) -> SeriesQuali
         stale = max(0, business_days_after(dates[-1], calendar[-1]) - FOREIGN_LAG)
     return SeriesQuality(
         ticker=ticker,
-        market="BIST" if bist else "Yabancı",
+        market="BIST" if bist else "Foreign",
         first=dates[0],
         last=dates[-1],
         bars=len(bars),
@@ -217,7 +217,7 @@ def assess(ticker: str, bars: list[Bar], calendar: list[dt.date]) -> SeriesQuali
 
 def assess_all(series: dict[str, list[Bar]]) -> list[SeriesQuality]:
     if CALENDAR_TICKER not in series:
-        raise SystemExit(f"{CALENDAR_TICKER} serisi yok; takvim kurulamıyor.")
+        raise SystemExit(f"No {CALENDAR_TICKER} series; cannot build the trading calendar.")
     calendar = [bar.date for bar in series[CALENDAR_TICKER] if valid_close(bar.close)]
     results = [assess(ticker, bars, calendar) for ticker, bars in series.items() if bars]
     return sorted(results, key=lambda q: (STATUS_ORDER[q.status], q.ticker))
@@ -238,8 +238,8 @@ def load_bars() -> dict[str, list[Bar]]:
 
 def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
     header = (
-        f"{'Kod':<10}{'Piyasa':<9}{'İlk':<12}{'Son':<12}{'Gün':>6}{'Kapsam':>9}"
-        f"{'Eksik':>7}{'Bayat':>7}{'Sıçrama':>9}{'Şüpheli':>9}{'Donuk':>7}{'Geçici':>8}  Durum"
+        f"{'Ticker':<10}{'Market':<9}{'First':<12}{'Last':<12}{'Bars':>6}{'Coverage':>9}"
+        f"{'Missing':>8}{'Stale':>7}{'Jumps':>7}{'Suspect':>9}{'Flat':>6}{'Prov.':>7}  Status"
     )
     lines = [header]
     for q in results:
@@ -247,23 +247,23 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
             continue
         lines.append(
             f"{q.ticker:<10}{q.market:<9}{q.first.isoformat():<12}{q.last.isoformat():<12}"
-            f"{q.bars:>6}{q.coverage:>9.1%}{len(q.missing):>7}{q.stale:>7}"
-            f"{len(q.jumps):>9}{len(q.suspicious):>9}{q.flat_run:>7}"
-            f"{'evet' if q.provisional else '':>8}  {q.status}"
+            f"{q.bars:>6}{q.coverage:>9.1%}{len(q.missing):>8}{q.stale:>7}"
+            f"{len(q.jumps):>7}{len(q.suspicious):>9}{q.flat_run:>6}"
+            f"{'yes' if q.provisional else '':>7}  {q.status}"
         )
     counts = {status: sum(q.status == status for q in results) for status in STATUS_ORDER}
     provisional = sum(q.provisional for q in results)
     lines.append("")
     lines.append(
-        f"{len(results)} seri: {counts['Good']} iyi, {counts['Warning']} dikkat, "
-        f"{counts['Problem']} sorunlu; {provisional} seride son gün geçici."
+        f"{len(results)} series: {counts['Good']} good, {counts['Warning']} warning, "
+        f"{counts['Problem']} problem; last bar provisional in {provisional} series."
     )
     lines.append(
-        f"Takvim: {CALENDAR_TICKER}. Sıçrama: günlük ±{JUMP_THRESHOLD:.0%}; şüpheli: bölünme "
-        "oranı ya da 3 günde geri dönen ≥%50 sıçrama. "
-        f"Donuk: en uzun aynı kapanış serisi (≥ {FLAT_RUN} dikkat). "
-        f"Sorunlu: bayat > {STALE_LIMIT} gün, kapsam < {MIN_COVERAGE:.0%} "
-        "ya da geçersiz kapanış."
+        f"Calendar: {CALENDAR_TICKER}. Jump: daily ±{JUMP_THRESHOLD:.0%}; suspicious: split "
+        "ratio or a ≥50% jump that reverts within 3 days. "
+        f"Flat: longest run of identical closes (≥ {FLAT_RUN} = warning). "
+        f"Problem: stale > {STALE_LIMIT} days, coverage < {MIN_COVERAGE:.0%} "
+        "or an invalid close."
     )
     return "\n".join(lines)
 
@@ -271,24 +271,24 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
 def render_detail(q: SeriesQuality) -> str:
     lines = [f"{q.ticker} ({q.market}) — {q.status}"]
     lines.append(
-        f"  Eksik günler ({len(q.missing)}): "
+        f"  Missing days ({len(q.missing)}): "
         + ", ".join(day.isoformat() for day in q.missing[:20])
         + (" …" if len(q.missing) > 20 else "")
     )
     for day, change, reason in q.suspicious:
-        lines.append(f"  Şüpheli {day.isoformat()}: {change:+.1%} ({reason})")
-    lines.append(f"  En uzun donuk fiyat serisi: {q.flat_run} işlem günü")
+        lines.append(f"  Suspicious {day.isoformat()}: {change:+.1%} ({reason})")
+    lines.append(f"  Longest flat-price run: {q.flat_run} trading days")
     others = len(q.jumps) - len(q.suspicious)
-    lines.append(f"  Diğer sıçramalar (oynaklık, ±{JUMP_THRESHOLD:.0%} üstü): {others}")
-    state = "geçici" if q.provisional else "doğrulanmış"
-    lines.append(f"  Son çubuk {q.last.isoformat()}: {state}")
+    lines.append(f"  Other jumps (volatility, above ±{JUMP_THRESHOLD:.0%}): {others}")
+    state = "provisional" if q.provisional else "confirmed"
+    lines.append(f"  Last bar {q.last.isoformat()}: {state}")
     return "\n".join(lines)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fiyat serisi veri kalitesi raporu")
-    parser.add_argument("--issues", action="store_true", help="sadece iyi olmayanları göster")
-    parser.add_argument("--detail", nargs="*", default=[], help="ayrıntısı gösterilecek kodlar")
+    parser = argparse.ArgumentParser(description="Price-series data quality report")
+    parser.add_argument("--issues", action="store_true", help="show only series that are not Good")
+    parser.add_argument("--detail", nargs="*", default=[], help="tickers to show in detail")
     args = parser.parse_args()
     results = assess_all(load_bars())
     print(render(results, only_issues=args.issues))

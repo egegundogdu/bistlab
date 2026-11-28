@@ -25,4 +25,4 @@ def test_restore_verdict_passes_for_fresh_complete_copy() -> None:
 def test_restore_verdict_flags_problems() -> None:
     passed, evidence = restore_verdict(0, "prices", "funds,prices", 10)
     assert not passed
-    assert "boş" in evidence and "tablo" in evidence and "10 günlük" in evidence
+    assert "empty" in evidence and "table list" in evidence and "10 days old" in evidence

@@ -1,1 +1,1 @@
-"""Veri kalitesi denetimleri."""
+"""Data-quality checks."""
