@@ -1,4 +1,4 @@
-# ASELS değerleme varsayımları. Her sayı kaynağı ya da "varsayım" notuyla birlikte.
+# ASELS valuation assumptions. Every number has a source or an "assumption" note.
 
 [company]
 ticker = "ASELS"
@@ -6,19 +6,19 @@ currency = "TRY"
 
 [market]
 usd_risk_free = 0.0418        # ABD 10Y, 1 Ocak 2026 (Damodaran, Data Update 4, 2026)
-equity_risk_premium = 0.0889  # Türkiye toplam ERP, USD bazlı (Damodaran ctryprem, Şubat 2026)
-us_inflation = 0.025          # varsayım: uzun vadeli ABD enflasyonu
-local_inflation = 0.20        # varsayım: önümüzdeki yıllar ortalama TR enflasyonu
+equity_risk_premium = 0.0889  # Turkey total ERP, USD-based (Damodaran ctryprem, February 2026)
+us_inflation = 0.025          # assumption: long-term US inflation
+local_inflation = 0.20        # assumption: average Turkish inflation in the coming years
 
 [beta]
 use_blume = true
 
 [capital]
-pre_tax_cost_of_debt = 0.40   # varsayım: TL kurumsal borçlanma maliyeti
-tax_rate = 0.25               # Türkiye kurumlar vergisi oranı
+pre_tax_cost_of_debt = 0.40   # assumption: TRY corporate cost of debt
+tax_rate = 0.25               # Turkish corporate tax rate
 
 [forecast]
-base_fcf_years = 1            # son yıl: 3 yıllık ortalama, yatırım döneminin negatif yıllarını içeriyor
-growth = [0.30, 0.26, 0.23, 0.21, 0.20]  # varsayım: nominal TL büyüme, 5 yıl
-terminal_real_growth = 0.02   # varsayım: uzun vadeli reel büyüme
-lease_adjusted = false        # kiralama yükümlülüğü önemsiz
+base_fcf_years = 1            # latest year: a 3-year average would include negative investment-phase years
+growth = [0.30, 0.26, 0.23, 0.21, 0.20]  # assumption: nominal TRY growth, 5 years
+terminal_real_growth = 0.02   # assumption: long-term real growth
+lease_adjusted = false        # lease liabilities are immaterial

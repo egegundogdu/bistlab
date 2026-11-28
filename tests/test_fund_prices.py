@@ -21,7 +21,7 @@ def _raw() -> pd.DataFrame:
 def test_normalize_sorts_dedupes_and_drops_zero_prices() -> None:
     df = normalize_fund_prices(_raw())
     assert list(df["date"]) == [dt.date(2026, 1, 2), dt.date(2026, 1, 5)]
-    assert list(df["price"]) == [8.00, 8.12]  # aynı gün: sonuncu tutulur; sıfır fiyat atılır
+    assert list(df["price"]) == [8.00, 8.12]  # same day: last one kept; zero price dropped
 
 
 def test_save_fund_prices_twice_does_not_duplicate() -> None:
@@ -54,7 +54,7 @@ def test_fund_holding_supports_non_equity_assets() -> None:
                     fund_id=fund.id,
                     report_date=dt.date(2026, 10, 31),
                     asset="ICLN",
-                    asset_type="yabancı byf",
+                    asset_type="foreign_etf",
                     weight=0.05,
                     market_value=None,
                     currency="USD",

@@ -23,5 +23,5 @@ def test_beta_requires_enough_overlap() -> None:
 def test_weekly_returns_use_friday_closes() -> None:
     days = pd.bdate_range("2024-01-01", "2024-01-19")
     closes = pd.Series(range(1, len(days) + 1), index=days, dtype=float)
-    # Cuma kapanışları 5, 10, 15 → getiriler 10/5 - 1 = 1,0 ve 15/10 - 1 = 0,5
+    # Friday closes 5, 10, 15 → returns 10/5 - 1 = 1.0 and 15/10 - 1 = 0.5
     assert list(weekly_returns(closes).round(6)) == [1.0, 0.5]

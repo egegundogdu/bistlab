@@ -8,7 +8,7 @@ COV = np.array([[0.04, 0.0], [0.0, 0.01]])
 
 
 def test_min_variance_uses_inverse_variance_weights() -> None:
-    # İlişkisiz iki hisse: ağırlık ∝ 1 / varyans → 25 : 100 → %20 / %80
+    # Two uncorrelated stocks: weight ∝ 1 / variance → 25 : 100 → 20% / 80%
     assert min_variance(MU, COV).weights == pytest.approx([0.2, 0.8], abs=1e-3)
 
 
@@ -19,7 +19,7 @@ def test_max_weight_cap_is_respected() -> None:
 
 
 def test_max_sharpe_matches_tangency_portfolio() -> None:
-    # Teğet portföy ∝ Σ⁻¹ μ = [0,20 / 0,04, 0,10 / 0,01] = [5, 10] → 1/3, 2/3
+    # Tangency portfolio ∝ Σ⁻¹ μ = [0.20 / 0.04, 0.10 / 0.01] = [5, 10] → 1/3, 2/3
     p = max_sharpe(np.array([0.20, 0.10]), COV)
     assert p.weights == pytest.approx([1 / 3, 2 / 3], abs=1e-3)
 

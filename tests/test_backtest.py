@@ -17,14 +17,14 @@ def test_constant_returns_without_cost() -> None:
 
 def test_initial_purchase_pays_cost() -> None:
     result = run_backtest(_returns([[0.0, 0.0]] * 6), equal_weight, lookback=2, cost=0.01)
-    assert result.returns.iloc[0] == pytest.approx(-0.01)  # ilk alım: devir 1
+    assert result.returns.iloc[0] == pytest.approx(-0.01)  # initial purchase: turnover 1
     assert result.returns.iloc[1:].abs().max() == pytest.approx(0.0)
 
 
 def test_weights_drift_between_rebalances() -> None:
     returns = _returns([[0.0, 0.0], [0.10, 0.0], [0.0, 0.10]])
     result = run_backtest(returns, equal_weight, lookback=1, rebalance_every=100, cost=0.0)
-    # 1. gün %5; ağırlıklar 0,55 / 0,50 → B'nin payı 0,5 / 1,05; 2. gün getiri = 0,1 × 0,5 / 1,05
+    # day 1 +5%; weights 0.55 / 0.50 → B's share 0.5 / 1.05; day 2 return = 0.1 × 0.5 / 1.05
     assert list(result.returns) == pytest.approx([0.05, 0.1 * 0.5 / 1.05])
 
 

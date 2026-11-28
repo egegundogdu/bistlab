@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Veritabanı yedeği: backups/bistlab-YYYY-MM-DD-HHMM.sql.gz
-# Geri yükleme: gunzip -c DOSYA | docker compose exec -T db psql -U bistlab -d bistlab
+# Database backup: backups/bistlab-YYYY-MM-DD-HHMM.sql.gz
+# Restore: gunzip -c FILE | docker compose exec -T db psql -U bistlab -d bistlab
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p backups

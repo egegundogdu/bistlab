@@ -1,4 +1,4 @@
-"""Türkçe sayı biçimli (1.234,56) KAP raporu, Ak Portföy düzeni."""
+"""KAP report with Turkish number format (1.234,56), Ak Portfoy layout."""
 
 import pytest
 

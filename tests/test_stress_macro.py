@@ -29,8 +29,8 @@ def test_factor_betas_recovers_known_coefficients() -> None:
 def test_insignificant_fx_beta_is_zeroed_in_scenarios() -> None:
     rng = np.random.default_rng(1)
     market = rng.normal(0, 0.03, 100)
-    fx = rng.normal(0, 0.002, 100)  # küçük, gürültülü kur hareketi
-    y = 1.0 * market + rng.normal(0, 0.03, 100)  # kura gerçek duyarlılık yok
+    fx = rng.normal(0, 0.002, 100)  # small, noisy FX moves
+    y = 1.0 * market + rng.normal(0, 0.03, 100)  # no true FX sensitivity
     b = factor_betas(y, market, fx)
     assert abs(b.t_fx) < 2 and b.fx_used == 0.0
     assert scenario_impact(b, -0.2, 0.3) == pytest.approx(b.market * -0.2)

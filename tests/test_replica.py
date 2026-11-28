@@ -16,7 +16,7 @@ SERIES = [(D(2026, 10, 30), 100.0), (D(2026, 11, 3), 110.0), (D(2026, 11, 20), 1
 
 
 def test_value_on_uses_last_known_value() -> None:
-    assert value_on(SERIES, D(2026, 10, 31)) == 100.0  # hafta sonu -> önceki gün
+    assert value_on(SERIES, D(2026, 10, 31)) == 100.0  # weekend -> previous day
     assert value_on(SERIES, D(2026, 11, 25)) == 121.0
     assert value_on(SERIES, D(2026, 10, 1)) is None
 
@@ -45,7 +45,7 @@ def test_replica_rescales_missing_positions() -> None:
     result = replica_return(positions)
     assert result.covered_weight == pytest.approx(0.8)
     assert result.portfolio_return == pytest.approx((0.05 - 0.03) / 0.8)
-    assert result.contributions[0][0] == "B"  # en kötü başta
+    assert result.contributions[0][0] == "B"  # worst first
 
 
 def test_replica_without_data_raises() -> None:

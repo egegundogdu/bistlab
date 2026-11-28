@@ -1,4 +1,4 @@
-# THYAO değerleme varsayımları. Şirket USD raporladığı için hesap USD yapılır.
+# THYAO valuation assumptions. The company reports in USD, so the model runs in USD.
 
 [company]
 ticker = "THYAO"
@@ -6,18 +6,18 @@ currency = "USD"
 
 [market]
 usd_risk_free = 0.0418        # ABD 10Y, 1 Ocak 2026 (Damodaran, Data Update 4, 2026)
-equity_risk_premium = 0.0889  # Türkiye toplam ERP, USD bazlı (Damodaran ctryprem, Şubat 2026)
-us_inflation = 0.025          # varsayım: uzun vadeli ABD enflasyonu
+equity_risk_premium = 0.0889  # Turkey total ERP, USD-based (Damodaran ctryprem, February 2026)
+us_inflation = 0.025          # assumption: long-term US inflation
 
 [beta]
 use_blume = true
 
 [capital]
-pre_tax_cost_of_debt = 0.07   # varsayım: USD borçlanma maliyeti
+pre_tax_cost_of_debt = 0.07   # assumption: USD cost of debt
 tax_rate = 0.25
 
 [forecast]
 base_fcf_years = 3
-growth = [0.07, 0.06, 0.06, 0.05, 0.05]  # varsayım: nominal USD büyüme, 5 yıl
+growth = [0.07, 0.06, 0.06, 0.05, 0.05]  # assumption: nominal USD growth, 5 years
 terminal_real_growth = 0.02
-lease_adjusted = true         # filo büyük ölçüde kiralık: kira ödemesi FCF'den düşülür, kira borcu borçtan çıkar
+lease_adjusted = true         # fleet largely leased: lease payments come out of FCF, lease liabilities out of debt

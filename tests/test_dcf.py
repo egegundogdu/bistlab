@@ -38,7 +38,7 @@ def test_terminal_value_requires_rate_above_growth() -> None:
 
 
 def test_dcf_value_end_to_end() -> None:
-    # PV(akışlar) = 200, TV = 1210, PV(TV) = 1210 / 1,21 = 1000, FD = 1200
+    # PV(flows) = 200, TV = 1210, PV(TV) = 1210 / 1.21 = 1000, EV = 1200
     result = dcf_value([110, 121], 0.10, 0.0, net_debt=200, shares=10)
     assert result.enterprise_value == pytest.approx(1200)
     assert result.equity_value == pytest.approx(1000)

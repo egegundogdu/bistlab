@@ -35,7 +35,7 @@ def test_governance_without_files_is_empty() -> None:
 
 
 def test_multiples_median_uses_universe() -> None:
-    """?tickers=THYAO çağrısında medyan tek şirkete değil akran evrenine ait olmalı."""
+    """With ?tickers=THYAO the median must come from the peer universe, not one company."""
     full = core.multiples(FakeSource(), ["ASELS", "THYAO"])
     one = core.multiples(FakeSource(), ["THYAO"], universe=["ASELS", "THYAO"])
     assert [r.ticker for r in one.results] == ["THYAO"]

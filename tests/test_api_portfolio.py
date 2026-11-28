@@ -10,7 +10,7 @@ KW = {"years": 2.0, "risk_free": 0.0, "level": 0.95, "max_weight": 1.0}
 
 
 class Prices:
-    """Tohumlu sentetik fiyatlar: AAA–BBB pozitif, CCC ortak faktöre ters (negatif) bağlı."""
+    """Seeded synthetic prices: AAA–BBB positive, CCC inversely tied to the common factor."""
 
     def __init__(self) -> None:
         rng = np.random.default_rng(7)
@@ -45,7 +45,7 @@ def test_correlation_and_diversification() -> None:
     assert corr.diagonal() == pytest.approx([1.0, 1.0, 1.0])
     assert corr[0, 1] > 0.3
     assert corr[0, 2] < -0.3
-    # negatif korelasyonlu hisse eklenince portföy oynaklığı tek tek hisselerin altına iner
+    # adding a negatively correlated stock pushes portfolio vol below each stock's vol
     assert out.volatility < min(out.asset_volatility)
 
 
@@ -68,5 +68,5 @@ def test_bad_inputs() -> None:
         portfolio.portfolio_risk(src, ["AAA", "BBB"], [1.0], **KW)
     with pytest.raises(ValueError, match="negative"):
         portfolio.portfolio_risk(src, ["AAA", "BBB"], [1.0, -1.0], **KW)
-    with pytest.raises(ValueError):  # 3 hisse × 0,2 < 1: ağırlıklar 1'e tamamlanamaz
+    with pytest.raises(ValueError):  # 3 stocks × 0.2 < 1: weights cannot sum to 1
         portfolio.portfolio_risk(src, ["AAA", "BBB", "CCC"], None, **{**KW, "max_weight": 0.2})

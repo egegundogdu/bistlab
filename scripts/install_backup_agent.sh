@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Günlük yedek için macOS launchd ajanını kurar. Kullanım: ./scripts/install_backup_agent.sh [saat]
-# Kaldırmak için: launchctl bootout gui/$(id -u)/com.bistlab.backup && rm ~/Library/LaunchAgents/com.bistlab.backup.plist
+# Installs the macOS launchd agent for daily backups. Usage: ./scripts/install_backup_agent.sh [saat]
+# To remove: launchctl bootout gui/$(id -u)/com.bistlab.backup && rm ~/Library/LaunchAgents/com.bistlab.backup.plist
 set -e
 ROOT="${0:A:h:h}"
 LABEL=com.bistlab.backup
@@ -31,4 +31,4 @@ EOF
 plutil -lint "$PLIST"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Kuruldu: her gün $HOUR:00 — $PLIST"
+echo "Installed: daily at $HOUR:00 — $PLIST"

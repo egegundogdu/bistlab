@@ -11,7 +11,7 @@ def test_default_point() -> None:
 
 
 def test_merton_equity_is_call_on_assets() -> None:
-    # Borç sıfıra yakınsa hisse ≈ varlık, hisse oynaklığı ≈ varlık oynaklığı
+    # With near-zero debt, equity ≈ assets and equity vol ≈ asset vol
     equity, equity_vol = merton_equity(100.0, 0.3, 1e-9, 0.05)
     assert equity == pytest.approx(100.0, rel=1e-6)
     assert equity_vol == pytest.approx(0.3, rel=1e-6)

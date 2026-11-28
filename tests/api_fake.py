@@ -1,4 +1,4 @@
-"""API testleri için sahte veri kaynağı (veritabanı gerektirmez)."""
+"""Fake data source for API tests (no database needed)."""
 
 from __future__ import annotations
 
