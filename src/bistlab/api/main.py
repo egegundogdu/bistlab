@@ -138,13 +138,15 @@ def get_source() -> FullSource:
 
 
 Source = Annotated[FullSource, Depends(get_source)]
-Tickers = Annotated[list[str] | None, Query(description="Kodlar; boşsa 8 ana hisse")]
+Tickers = Annotated[list[str] | None, Query(description="Tickers; empty = the 8 core stocks")]
 
 app = FastAPI(
     title="bistlab",
     version="0.5.0",
-    description="BIST analiz ve risk platformu — salt okunur API. "
-    "Eğitim amaçlıdır; yatırım tavsiyesi değildir.",
+    description=(
+        "Equity analytics and risk lab built on Borsa Istanbul — read-only API. "
+        "For education only; not investment advice."
+    ),
 )
 CORS_ORIGINS = os.environ.get("BISTLAB_CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
@@ -159,7 +161,7 @@ def clean_tickers(tickers: list[str] | None) -> list[str]:
     codes = [t.strip().upper() for t in (tickers or DEFAULT_TICKERS)]
     bad = [t for t in codes if not TICKER.match(t)]
     if bad:
-        raise HTTPException(status_code=422, detail=f"Geçersiz kod: {', '.join(bad)}")
+        raise HTTPException(status_code=422, detail=f"Invalid ticker: {', '.join(bad)}")
     return codes
 
 
@@ -220,7 +222,9 @@ def credit_scores(source: Source, tickers: Tickers = None) -> CreditOut:
 def credit_merton(
     source: Source,
     tickers: Tickers = None,
-    rate: Annotated[float, Query(ge=0, le=2, description="Yıllık basit TL risksiz faiz")] = 0.40,
+    rate: Annotated[
+        float, Query(ge=0, le=2, description="Annual simple TRY risk-free rate")
+    ] = 0.40,
 ) -> MertonOut:
     return core.merton(source, clean_tickers(tickers), rate)
 
@@ -237,8 +241,8 @@ def governance_scores(source: Source, detail: bool = False) -> GovernanceOut:
 
 OptionType = Annotated[Literal["call", "put"], Query(alias="type")]
 Positive = Annotated[float, Query(gt=0)]
-Days = Annotated[int, Query(ge=1, le=3650, description="Vadeye kalan takvim günü")]
-Rate = Annotated[float, Query(ge=-0.5, le=3, description="Yıllık efektif faiz")]
+Days = Annotated[int, Query(ge=1, le=3650, description="Calendar days to maturity")]
+Rate = Annotated[float, Query(ge=-0.5, le=3, description="Annual effective interest rate")]
 Yield = Annotated[float, Query(ge=0, le=1)]
 
 
@@ -284,7 +288,7 @@ def derivatives_futures_hedge(
     rate: Rate = 0.40,
     dividend_yield: Yield = 0.0,
     years: Annotated[int, Query(ge=1, le=5)] = 1,
-    multiplier: Annotated[float | None, Query(gt=0, description="VİOP kontrat çarpanı")] = None,
+    multiplier: Annotated[float | None, Query(gt=0, description="VIOP contract multiplier")] = None,
 ) -> HedgeOut:
     codes = clean_tickers(tickers)
     index_code = clean_tickers([index])[0]
@@ -329,9 +333,9 @@ def prices(source: Source, code: str, since: dt.date = dt.date(2023, 1, 2)) -> P
 def valuation_dcf(
     source: Source,
     code: str,
-    wacc: Annotated[float | None, Query(gt=0, lt=2, description="WACC (boşsa model)")] = None,
+    wacc: Annotated[float | None, Query(gt=0, lt=2, description="WACC (empty = model)")] = None,
     terminal_growth: Annotated[
-        float | None, Query(gt=-0.5, lt=1, description="Uzun vadeli büyüme (boşsa model)")
+        float | None, Query(gt=-0.5, lt=1, description="Long-term growth (empty = model)")
     ] = None,
 ) -> DcfOut:
     ticker = clean_tickers([code])[0]
@@ -339,7 +343,7 @@ def valuation_dcf(
         return core.dcf(source, ticker, wacc, terminal_growth)
     except KeyError:
         raise HTTPException(
-            status_code=404, detail=f"{ticker} için varsayım dosyası ya da veri yok"
+            status_code=404, detail=f"{ticker}: no assumption file or data"
         ) from None
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
@@ -350,7 +354,7 @@ def portfolio_risk(
     source: Source,
     tickers: Tickers = None,
     weights: Annotated[
-        list[float] | None, Query(description="tickers sırasıyla ağırlıklar; boşsa eşit")
+        list[float] | None, Query(description="Weights in ticker order; empty = equal weights")
     ] = None,
     years: Annotated[float, Query(gt=0, le=10)] = 2.0,
     risk_free: Rate = 0.40,

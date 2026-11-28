@@ -10,9 +10,6 @@ import {
 
 export const metadata = { title: "Screener · bistlab" };
 
-// Temporary: the API still returns Turkish status labels (switched to English in the API PR).
-const QUALITY: Record<string, string> = { "İyi": "Good", Dikkat: "Warning", Sorunlu: "Problem" };
-
 export default async function ScreenerPage() {
   const [multiples, credit, merton, governance, quality] = await Promise.all([
     get<Multiples>("/valuation/multiples"),
@@ -44,7 +41,7 @@ export default async function ScreenerPage() {
       pd: d?.default_probability ?? null,
       governance: g?.total ?? null,
       lastDate: q?.last ?? null,
-      quality: q ? (QUALITY[q.status] ?? q.status) : null,
+      quality: q?.status ?? null,
       qualityNote: q
         ? `${q.bars} days · missing ${q.missing} · jumps ${q.jumps} · flat run ${q.flat_run}` +
           (q.provisional ? " · last bar provisional" : "")

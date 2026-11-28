@@ -475,9 +475,9 @@ def restore_check(root: Path) -> list[Finding]:
 def quality_verdict(statuses: dict[str, str]) -> tuple[bool, str]:
     """Seri durumlarından (kod → İyi/Dikkat/Sorunlu) VB-04 sonucu."""
     values = list(statuses.values())
-    bad = sorted(code for code, status in statuses.items() if status == "Sorunlu")
+    bad = sorted(code for code, status in statuses.items() if status == "Problem")
     summary = (
-        f"{len(values)} seri: {values.count('İyi')} iyi, {values.count('Dikkat')} dikkat, "
+        f"{len(values)} seri: {values.count('Good')} iyi, {values.count('Warning')} dikkat, "
         f"{len(bad)} sorunlu"
     )
     if bad:

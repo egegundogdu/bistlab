@@ -72,15 +72,15 @@ def test_is_bist_uses_suffix_and_calendar_share() -> None:
 def test_assess_statuses() -> None:
     calendar = [D(2026, 1, d) for d in (5, 6, 7, 8, 9, 12, 13, 14, 15, 16)]
     good = assess("THYAO", bars(calendar), calendar)
-    assert good.status == "İyi" and good.coverage == 1.0 and not good.provisional
+    assert good.status == "Good" and good.coverage == 1.0 and not good.provisional
     stale = assess("ASELS", bars(calendar[:5]), calendar)
-    assert stale.stale == 5 and stale.status == "Sorunlu"
+    assert stale.stale == 5 and stale.status == "Problem"
     # 10 günde 1 eksik = %90 kapsam -> sorunlu; uzun seride 1 eksik -> dikkat
     short_gap = assess("BIMAS", bars(calendar[:3] + calendar[4:]), calendar)
-    assert short_gap.missing == [D(2026, 1, 8)] and short_gap.status == "Sorunlu"
+    assert short_gap.missing == [D(2026, 1, 8)] and short_gap.status == "Problem"
     long_calendar = [D(2026, 1, 1) + dt.timedelta(days=i) for i in range(60)]
     long_gap = assess("EREGL", bars(long_calendar[:10] + long_calendar[11:]), long_calendar)
-    assert len(long_gap.missing) == 1 and long_gap.status == "Dikkat"
+    assert len(long_gap.missing) == 1 and long_gap.status == "Warning"
 
 
 def test_split_like_detects_split_ratios_only() -> None:
@@ -98,10 +98,10 @@ def closes(values: list[float]) -> list[Bar]:
 
 def test_suspicious_jumps_split_and_round_trip() -> None:
     assert suspicious_jumps(closes([10, 10, 50, 51, 52, 53])) == [
-        (D(2026, 1, 7), 4.0, "bölünme oranı")
+        (D(2026, 1, 7), 4.0, "split ratio")
     ]
     found = suspicious_jumps(closes([10, 10, 17, 10.5, 10, 10]))
-    assert [(day, reason) for day, _, reason in found] == [(D(2026, 1, 7), "geri dönen sıçrama")]
+    assert [(day, reason) for day, _, reason in found] == [(D(2026, 1, 7), "reverting jump")]
     assert suspicious_jumps(closes([10, 13, 9, 12, 8.5, 11])) == []
 
 
@@ -115,6 +115,6 @@ def test_foreign_series_one_business_day_behind_is_not_stale() -> None:
     calendar = [D(2026, 11, d) for d in (20, 23, 24, 25, 26)]
     us = bars([D(2026, 11, d) for d in (20, 23, 24, 25)])
     q = assess("ENR.DE", us, calendar)
-    assert q.market == "Yabancı" and q.stale == 0 and q.status == "İyi"
+    assert q.market == "Yabancı" and q.stale == 0 and q.status == "Good"
     two_behind = assess("ENR.DE", bars([D(2026, 11, d) for d in (20, 23, 24)]), calendar)
-    assert two_behind.stale == 1 and two_behind.status == "Dikkat"
+    assert two_behind.stale == 1 and two_behind.status == "Warning"

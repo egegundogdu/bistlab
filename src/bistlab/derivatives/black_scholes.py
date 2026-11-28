@@ -21,7 +21,7 @@ _N = NormalDist()
 
 def _validate(spot: float, strike: float, years: float, vol: float) -> None:
     if spot <= 0 or strike <= 0:
-        raise ValueError("Spot ve kullanım fiyatı pozitif olmalı.")
+        raise ValueError("Spot and strike must be positive.")
     if years < 0 or vol < 0:
         raise ValueError("Vade ve volatilite negatif olamaz.")
 
@@ -81,7 +81,7 @@ def greeks(
     """Analitik Greeks; vade ve volatilite pozitif olmalı."""
     _validate(spot, strike, years, vol)
     if years == 0 or vol == 0:
-        raise ValueError("Greeks için vade ve volatilite pozitif olmalı.")
+        raise ValueError("Greeks require positive maturity and volatility.")
     d1, d2 = d1_d2(spot, strike, years, rate, vol, dividend_yield)
     q_disc = math.exp(-dividend_yield * years)
     r_disc = math.exp(-rate * years)
@@ -127,7 +127,7 @@ def implied_volatility(
         high_price = strike * math.exp(-rate * years)
     if not low_price < price < high_price:
         raise ValueError(
-            f"Fiyat arbitrajsız aralıkta değil: ({low_price:.4f}, {high_price:.4f}) olmalı."
+            f"Price outside the no-arbitrage range ({low_price:.4f}, {high_price:.4f})."
         )
     low, high = 1e-6, 5.0
     for _ in range(200):
@@ -146,7 +146,7 @@ def main() -> None:
     parser.add_argument("--ticker", help="Dayanak hisse; son fiyat ve tarihsel vol. buradan")
     parser.add_argument("--spot", type=float, help="Dayanak fiyatı (ticker yoksa zorunlu)")
     parser.add_argument("--strike", type=float, help="Kullanım fiyatı (varsayılan: spot, ATM)")
-    parser.add_argument("--days", type=int, default=30, help="Vadeye kalan takvim günü")
+    parser.add_argument("--days", type=int, default=30, help="Calendar days to maturity")
     parser.add_argument("--rate", type=float, default=0.40, help="Yıllık risksiz faiz (efektif)")
     parser.add_argument("--vol", type=float, help="Yıllık volatilite (ticker varsa tarihsel)")
     parser.add_argument("--dividend-yield", type=float, default=0.0, help="Yıllık temettü verimi")

@@ -20,9 +20,9 @@ def test_altman_z_em_formula() -> None:
 
 
 def test_altman_zone() -> None:
-    assert altman_zone(7.0) == "güvenli"
-    assert altman_zone(5.0) == "gri"
-    assert altman_zone(3.0) == "sıkıntı"
+    assert altman_zone(7.0) == "safe"
+    assert altman_zone(5.0) == "grey"
+    assert altman_zone(3.0) == "distress"
 
 
 def test_interest_coverage_handles_sign_and_zero() -> None:

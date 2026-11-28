@@ -59,10 +59,10 @@ def altman_z_em(
 
 def altman_zone(z: float) -> str:
     if z > ALTMAN_SAFE:
-        return "güvenli"
+        return "safe"
     if z < ALTMAN_DISTRESS:
-        return "sıkıntı"
-    return "gri"
+        return "distress"
+    return "grey"
 
 
 def operating_profit(items: pd.DataFrame) -> pd.Series[float]:
@@ -86,7 +86,7 @@ def synthetic_rating(coverage: float) -> tuple[str, float]:
     for lower, rating, spread in RATING_TABLE:
         if coverage >= lower:
             return rating, spread
-    raise ValueError(f"Geçersiz faiz karşılama oranı: {coverage}")
+    raise ValueError(f"Invalid interest coverage ratio: {coverage}")
 
 
 def credit_table(items: pd.DataFrame) -> pd.DataFrame:

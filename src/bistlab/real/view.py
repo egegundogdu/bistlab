@@ -44,7 +44,7 @@ def cpi_for(cpi: dict[dt.date, float], day: dt.date) -> tuple[float, bool]:
     latest = max(cpi)
     if key > latest:
         return cpi[latest], True
-    raise KeyError(f"{key.isoformat()} için TÜFE yok")
+    raise KeyError(f"{key.isoformat()}: no CPI data")
 
 
 def value_asof(points: Points, day: dt.date) -> float | None:
@@ -79,7 +79,7 @@ def performance(ticker: str, prices: Points, cpi: dict[dt.date, float], usd: Poi
     cpi_end, estimated = cpi_for(cpi, end)
     usd_start, usd_end = value_asof(usd, start), value_asof(usd, end)
     if usd_start is None or usd_end is None:
-        raise ValueError(f"{ticker}: {start} için USD/TRY yok")
+        raise ValueError(f"{ticker}: {start}: no USD/TRY data")
     return Performance(
         ticker=ticker,
         start=start,
@@ -220,7 +220,7 @@ def main() -> None:
         cpi = dict(load_macro(conn, CPI_CODE))
         usd = load_macro(conn, FX_CODES["USD"])
         if not cpi or not usd:
-            raise SystemExit("TÜFE ya da USD/TRY serisi yok; önce makro veriyi çekin.")
+            raise SystemExit("No CPI or USD/TRY series; fetch the macro data first.")
         results = []
         for ticker in [MARKET, *args.tickers]:
             prices = load_prices(conn, ticker, args.since)

@@ -6,7 +6,7 @@ import datetime as dt
 
 from pydantic import BaseModel
 
-DISCLAIMER = "Eğitim amaçlıdır; yatırım tavsiyesi değildir."
+DISCLAIMER = "For education only; not investment advice."
 
 
 class Health(BaseModel):
@@ -139,8 +139,9 @@ class CreditOut(BaseModel):
     results: list[CreditCompany]
     skipped: list[str]
     note: str = (
-        "Altman Z'' (EM) ve Damodaran sentetik notu (Ocak 2026, USD spread); "
-        "faaliyet kârı Yahoo EBIT'i yerine esas faaliyet kârı."
+        "Altman Z'' (emerging markets) and Damodaran's synthetic rating "
+        "(January 2026, USD spreads); operating profit is reported operating "
+        "profit rather than Yahoo's EBIT."
     )
     disclaimer: str = DISCLAIMER
 
@@ -162,9 +163,10 @@ class MertonOut(BaseModel):
     results: list[MertonCompany]
     skipped: list[str]
     note: str = (
-        "Piyasa değeri = veritabanındaki son kapanış × hisse sayısı; yabancı para borç TCMB "
-        "kuruyla TL'ye çevrilir. CLI canlı Yahoo verisi kullandığı için küçük farklar olabilir. "
-        "PD risk-nötr ve 1 yıllıktır; kredi notu değildir."
+        "Market value = last close in the database × shares outstanding; "
+        "foreign-currency debt is converted to TRY at the central bank rate. "
+        "The CLI uses live Yahoo data, so small differences are possible. PD is "
+        "risk-neutral and one-year; it is not a credit rating."
     )
     disclaimer: str = DISCLAIMER
 
@@ -183,7 +185,9 @@ class MultiplesOut(BaseModel):
     results: list[MultiplesRow]
     median: dict[str, float | None]
     skipped: list[str]
-    note: str = "Son yıllık finansallar; boş değer = zarar ya da negatif payda (anlamsız çarpan)."
+    note: str = (
+        "Last annual financials; empty value = loss or negative denominator (meaningless multiple)."
+    )
     disclaimer: str = DISCLAIMER
 
 
@@ -206,9 +210,10 @@ class GovernanceOut(BaseModel):
     results: list[GovernanceCompany]
     skipped: list[str]
     note: str = (
-        "0-10 ölçeği; SPK ağırlıkları: pay sahipleri %25, kamuyu aydınlatma %25, menfaat "
-        "sahipleri %15, yönetim kurulu %35. Şirket beyanına (KAP KYBF) dayanır, "
-        "derecelendirme notu değildir."
+        "0–10 scale; regulator weights: shareholders 25%, disclosure & "
+        "transparency 25%, stakeholders 15%, board of directors 35%. Based on "
+        "the company's self-disclosure (KAP governance form); not a rating, not "
+        "investment advice."
     )
     disclaimer: str = DISCLAIMER
 
@@ -237,8 +242,9 @@ class OptionOut(BaseModel):
     monte_carlo_std_error: float
     put_call_parity_gap: float
     note: str = (
-        "rate yıllık efektif faizdir; modellere ln(1+r) sürekli faiz olarak girer. "
-        "Vega/rho 1 puan, theta 1 takvim günü içindir. Parite farkı ≈ 0 olmalı."
+        "rate is the annual effective rate; models use ln(1+r) as the "
+        "continuous rate. Vega and rho are per 1 percentage point, theta per "
+        "calendar day. The parity gap should be ≈ 0."
     )
     disclaimer: str = DISCLAIMER
 
@@ -265,8 +271,9 @@ class HedgeOut(BaseModel):
     hedged_vol: float
     risk_reduction: float
     note: str = (
-        "Vadeli fiyat teorik (taşıma maliyeti); hedge oranı günlük getirilerle minimum varyans "
-        "betası. Hedge sonrası kalan risk şirkete özgü risktir."
+        "Theoretical futures price (cost of carry); the hedge ratio is the "
+        "minimum-variance beta from daily returns. Risk left after hedging is "
+        "company-specific."
     )
     disclaimer: str = DISCLAIMER
 
@@ -360,8 +367,9 @@ class DcfOut(BaseModel):
     sensitivity_growths: list[float]
     sensitivity: list[list[float]]
     note: str = (
-        "Varsayımlar assumptions/<KOD>.toml dosyasından; tutarlar raporlama para biriminde, "
-        "hisse başı değer TL. Ters DCF: bugünkü fiyatın ima ettiği sabit yıllık FCF büyümesi."
+        "Assumptions from assumptions/<TICKER>.toml; amounts in the reporting "
+        "currency, per-share value in TRY. Reverse DCF: the constant annual FCF "
+        "growth over five years implied by today's price."
     )
     disclaimer: str = DISCLAIMER
 
@@ -399,7 +407,8 @@ class PortfolioOut(BaseModel):
     max_sharpe: FrontierPoint
     frontier: list[FrontierPoint]
     note: str = (
-        "Gerçekleşen ölçüler günlük getirilerden; beklenen getiri μ = aritmetik ortalama × 252. "
-        "VaR/CVaR günlük kayıp (pozitif), maks. düşüş negatif. Açığa satış yok. "
-        "Geçmiş, geleceğin garantisi değildir."
+        "Realised measures from daily returns; expected return μ = arithmetic "
+        "mean × 252. VaR/CVaR are daily losses (positive), max drawdown is "
+        "negative. Long only. Past performance does not guarantee future "
+        "results."
     )

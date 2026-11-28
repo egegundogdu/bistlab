@@ -45,7 +45,7 @@ BIST_SHARE = 0.99
 FOREIGN_GAP_BUSDAYS = 3
 STALE_LIMIT = 3
 MIN_COVERAGE = 0.95
-STATUS_ORDER = {"Sorunlu": 0, "Dikkat": 1, "İyi": 2}
+STATUS_ORDER = {"Problem": 0, "Warning": 1, "Good": 2}
 
 
 @dataclass(frozen=True)
@@ -78,10 +78,10 @@ class SeriesQuality:
     @property
     def status(self) -> str:
         if self.bad_closes or self.stale > STALE_LIMIT or self.coverage < MIN_COVERAGE:
-            return "Sorunlu"
+            return "Problem"
         if self.suspicious or self.missing or self.stale or self.flat_run >= FLAT_RUN:
-            return "Dikkat"
-        return "İyi"
+            return "Warning"
+        return "Good"
 
 
 def valid_close(close: float | None) -> bool:
@@ -137,13 +137,13 @@ def suspicious_jumps(bars: list[Bar]) -> list[tuple[dt.date, float, str]]:
         if abs(change) <= JUMP_THRESHOLD:
             continue
         if split_like(change):
-            found.append((day, change, "bölünme oranı"))
+            found.append((day, change, "split ratio"))
             continue
         after = points[index + 1 : index + 1 + SPIKE_WINDOW]
         if abs(change) >= SPIKE_MIN and any(
             abs(price / before - 1) <= SPIKE_RETURN for _, price in after
         ):
-            found.append((day, change, "geri dönen sıçrama"))
+            found.append((day, change, "reverting jump"))
     return found
 
 
@@ -243,7 +243,7 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
     )
     lines = [header]
     for q in results:
-        if only_issues and q.status == "İyi":
+        if only_issues and q.status == "Good":
             continue
         lines.append(
             f"{q.ticker:<10}{q.market:<9}{q.first.isoformat():<12}{q.last.isoformat():<12}"
@@ -255,8 +255,8 @@ def render(results: list[SeriesQuality], only_issues: bool = False) -> str:
     provisional = sum(q.provisional for q in results)
     lines.append("")
     lines.append(
-        f"{len(results)} seri: {counts['İyi']} iyi, {counts['Dikkat']} dikkat, "
-        f"{counts['Sorunlu']} sorunlu; {provisional} seride son gün geçici."
+        f"{len(results)} seri: {counts['Good']} iyi, {counts['Warning']} dikkat, "
+        f"{counts['Problem']} sorunlu; {provisional} seride son gün geçici."
     )
     lines.append(
         f"Takvim: {CALENDAR_TICKER}. Sıçrama: günlük ±{JUMP_THRESHOLD:.0%}; şüpheli: bölünme "
