@@ -1,4 +1,4 @@
-"""Veritabanı bağlantısı ve tablo tanımları."""
+"""Database connection and table definitions."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class Base(DeclarativeBase):
 
 
 class Security(Base):
-    """Borsada işlem gören bir menkul kıymet (ör. THYAO)."""
+    """A listed security (e.g. THYAO)."""
 
     __tablename__ = "securities"
 
@@ -36,7 +36,7 @@ class Security(Base):
 
 
 class Price(Base):
-    """Bir menkul kıymetin günlük fiyat kaydı."""
+    """Daily price row of a security."""
 
     __tablename__ = "prices"
 
@@ -54,21 +54,21 @@ class Price(Base):
 
 
 def get_engine(url: str | None = None) -> Engine:
-    """Verilen URL'ye ya da .env'deki DATABASE_URL'ye bağlanır."""
+    """Connects to the given URL or DATABASE_URL from .env."""
     load_dotenv()
     database_url = url or os.environ.get("DATABASE_URL")
     if not database_url:
-        raise RuntimeError("DATABASE_URL tanımlı değil. .env dosyasını kontrol et.")
+        raise RuntimeError("DATABASE_URL is not set. Check the .env file.")
     return create_engine(database_url)
 
 
 def init_db(engine: Engine) -> None:
-    """Tabloları oluşturur; zaten varsa dokunmaz."""
+    """Creates the tables; leaves existing ones untouched."""
     Base.metadata.create_all(engine)
 
 
 class MacroObservation(Base):
-    """TCMB EVDS'den bir makro serinin tek gözlemi (ör. USD/TRY, TÜFE)."""
+    """One observation of a macro series from CBRT EVDS (e.g. USD/TRY, CPI)."""
 
     __tablename__ = "macro_observations"
 
@@ -78,7 +78,7 @@ class MacroObservation(Base):
 
 
 class FinancialItem(Base):
-    """Finansal tablodaki tek bir kalem (ör. THYAO, 2025 yıllık, gelir tablosu, EBITDA)."""
+    """One financial statement line item (e.g. THYAO, FY2025, income statement, EBITDA)."""
 
     __tablename__ = "financial_items"
 
@@ -92,7 +92,7 @@ class FinancialItem(Base):
 
 
 class Fund(Base):
-    """TEFAS'ta işlem gören bir yatırım fonu (ör. IKP)."""
+    """An investment fund traded on TEFAS (e.g. IKP)."""
 
     __tablename__ = "funds"
 
@@ -102,7 +102,7 @@ class Fund(Base):
 
 
 class FundPrice(Base):
-    """Fonun günlük birim pay fiyatı."""
+    """Daily unit price of a fund."""
 
     __tablename__ = "fund_prices"
 
@@ -112,22 +112,24 @@ class FundPrice(Base):
 
 
 class FundHolding(Base):
-    """Aylık portföy dağılım raporundaki tek bir varlık (hisse, tahvil, BYF, repo...)."""
+    """One holding from a monthly portfolio report (stock, bond, ETF, repo...)."""
 
     __tablename__ = "fund_holdings"
 
     fund_id: Mapped[int] = mapped_column(ForeignKey("funds.id"), primary_key=True)
     report_date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
-    asset: Mapped[str] = mapped_column(String(120), primary_key=True)  # kod ya da ad
-    asset_type: Mapped[str] = mapped_column(String(40))  # hisse, tahvil, byf, repo...
-    weight: Mapped[float] = mapped_column(Float)  # portföy payı, 0-1
+    asset: Mapped[str] = mapped_column(String(120), primary_key=True)  # code or name
+    asset_type: Mapped[str] = mapped_column(
+        String(40)
+    )  # equity_tr, corporate_bond, fund_tr, reverse_repo...
+    weight: Mapped[float] = mapped_column(Float)  # share of NAV, 0-1
     market_value: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str | None] = mapped_column(String(3))
     isin: Mapped[str | None] = mapped_column(String(12))
 
 
 def get_or_create_security(session: Session, ticker: str) -> Security:
-    """Hisse kaydını bulur; yoksa oluşturur."""
+    """Finds the security row or creates it."""
     code = ticker.strip().upper().removesuffix(".IS")
     security = session.scalar(select(Security).where(Security.ticker == code))
     if security is None:

@@ -1,4 +1,4 @@
-"""Lisans modüllerinin API servisleri: kredi riski, Merton, çarpanlar, kurumsal yönetim."""
+"""API services for the licence modules: credit risk, Merton, multiples, governance."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def credit_scores(source: CoreSource, tickers: list[str]) -> CreditOut:
 
 
 def merton(source: CoreSource, tickers: list[str], rate: float) -> MertonOut:
-    """`rate` yıllık basit TL faizi; modele sürekli bileşik (log1p) olarak girer."""
+    """`rate` is the annual simple TRY rate; the model uses it continuously compounded."""
     continuous = math.log1p(rate)
     results: list[MertonCompany] = []
     skipped: list[str] = []
@@ -124,7 +124,7 @@ def merton(source: CoreSource, tickers: list[str], rate: float) -> MertonOut:
 def multiples(
     source: CoreSource, tickers: list[str], universe: list[str] | None = None
 ) -> MultiplesOut:
-    """Medyan akran evreninden (universe); tickers yalnızca satırları süzer."""
+    """Median from the peer universe; tickers only filter the rows."""
     peers = universe or tickers
     rows: dict[str, MultiplesRow] = {}
     failed: set[str] = set()
@@ -193,7 +193,7 @@ def dcf(
     wacc: float | None = None,
     terminal_growth: float | None = None,
 ) -> DcfOut:
-    """Varsayım dosyası yoksa KeyError, hesap geçersizse ValueError."""
+    """KeyError without an assumption file, ValueError for an invalid calculation."""
     try:
         a = source.assumptions(ticker)
     except (FileNotFoundError, OSError) as error:

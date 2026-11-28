@@ -1,1 +1,1 @@
-"""Reel (TÜFE ile düzeltilmiş) ve USD bazlı görünüm."""
+"""Real (CPI-adjusted) and USD views."""

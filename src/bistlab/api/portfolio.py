@@ -1,7 +1,7 @@
-"""Portföy risk uç noktasının çekirdeği: ağırlıklar → risk ölçüleri, korelasyon, Markowitz.
+"""Core of the portfolio risk endpoint: weights → risk measures, correlation, Markowitz.
 
-Yeni hesap yok; ``bistlab.portfolio`` fonksiyonları ortak tarih aralığına hizalanmış
-günlük getirilerle çağrılır. Veri kaynağı yalnızca ``closes(ticker)`` sağlamalı (DB'siz test).
+No new maths: ``bistlab.portfolio`` functions are called with daily returns aligned to
+a common date range. The source only needs ``closes(ticker)`` (testable without a DB).
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ class PriceSource(Protocol):
 def aligned_returns(
     source: PriceSource, tickers: Sequence[str], years: float
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Fiyatları ortak tarihlere hizalar, son ``years`` yılı alır, günlük getiri döndürür."""
+    """Aligns prices to common dates, keeps the last ``years`` years, returns daily returns."""
     series: dict[str, pd.Series[float]] = {}
     skipped: list[str] = []
     for ticker in tickers:
@@ -77,7 +77,7 @@ def aligned_returns(
 def normalized_weights(
     tickers: Sequence[str], names: Sequence[str], weights: Sequence[float] | None
 ) -> npt.NDArray[np.float64]:
-    """Boşsa eşit ağırlık; değilse tickers sırasıyla eşleştirip toplamı 1'e ölçekler."""
+    """Equal weights when empty; otherwise matched in ticker order and rescaled to sum to 1."""
     if not weights:
         return np.full(len(names), 1.0 / len(names), dtype=np.float64)
     if len(weights) != len(tickers):

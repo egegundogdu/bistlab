@@ -1,1 +1,1 @@
-"""bistlab HTTP API (salt okunur)."""
+"""bistlab HTTP API (read-only)."""

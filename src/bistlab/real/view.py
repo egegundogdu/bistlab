@@ -1,14 +1,14 @@
-"""Reel TL ve USD görünümü; TMS 29 FCF'sini bugünkü satın alma gücüne taşıma.
+"""Real TRY and USD views; restating IAS 29 FCF to today's purchasing power.
 
-Nominal TL getirisi yüksek enflasyonda yanıltıcıdır. Fiyat serileri TÜFE
-(TP.TUKFIY2025.GENEL, aylık, 2025=100) ile reel TL'ye, TCMB döviz alış kuru
-(TP.DK.USD.A.YTL, günlük) ile USD'ye çevrilir. Bir günün TÜFE'si o ayın endeksidir;
-ay henüz yayımlanmadıysa son yayımlanan ay kullanılır ve raporda belirtilir.
+Nominal TRY returns mislead under high inflation. Price series are converted to real TRY
+with CPI (TP.TUKFIY2025.GENEL, monthly, 2025=100) and to USD with the central bank
+buying rate (TP.DK.USD.A.YTL, daily). A day's CPI is that month's index; if the month
+is not published yet, the latest published month is used and the report says so.
 
-TMS 29 uygulayan şirketler yıl sonu tablolarını o tarihin satın alma gücüyle verir;
-piyasa değeri ise bugünün fiyatıdır. Karşılaştırma için FCF bugüne taşınır:
-FCF × TÜFE(son ay) / TÜFE(dönem sonu ayı). Yabancı para raporlayanlarda (THYAO: USD)
-TÜFE düzeltmesi yapılmaz; piyasa değeri raporlama para birimine çevrilir.
+Companies applying IAS 29 report year-end statements in that date's purchasing power,
+while market value is at today's prices. For comparison FCF is restated to today:
+FCF × CPI(latest month) / CPI(period-end month). Foreign-currency reporters (THYAO: USD)
+get no CPI restatement; market value is converted to the reporting currency.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def month_start(day: dt.date) -> dt.date:
 
 
 def cpi_for(cpi: dict[dt.date, float], day: dt.date) -> tuple[float, bool]:
-    """Günün ayına ait TÜFE. Ay yayımlanmadıysa son ay; ikinci değer bunu bildirir."""
+    """CPI for the day's month, or the latest month if unpublished (second value flags it)."""
     key = month_start(day)
     if key in cpi:
         return cpi[key], False
@@ -48,7 +48,7 @@ def cpi_for(cpi: dict[dt.date, float], day: dt.date) -> tuple[float, bool]:
 
 
 def value_asof(points: Points, day: dt.date) -> float | None:
-    """Verilen gün ya da öncesindeki son değer."""
+    """Last value on or before the given day."""
     index = bisect.bisect_right([d for d, _ in points], day) - 1
     return points[index][1] if index >= 0 else None
 
@@ -92,7 +92,7 @@ def performance(ticker: str, prices: Points, cpi: dict[dt.date, float], usd: Poi
 
 
 def restatement_factor(period_end: dt.date, cpi: dict[dt.date, float]) -> float:
-    """Dönem sonu satın alma gücünden son yayımlanan aya taşıma katsayısı."""
+    """Factor from period-end purchasing power to the latest published month."""
     period_cpi, _ = cpi_for(cpi, period_end)
     return cpi[max(cpi)] / period_cpi
 
@@ -125,7 +125,7 @@ def fcf_yield(
     fx_try: float,
     cpi: dict[dt.date, float],
 ) -> FcfYield:
-    """FCF getirisi; piyasa değeri raporlama para biriminde."""
+    """FCF yield; market value in the reporting currency."""
     if currency == "TRY":
         market_cap, factor = price_try * shares, restatement_factor(period_end, cpi)
     else:
@@ -154,7 +154,7 @@ def load_prices(conn: Connection, ticker: str, since: dt.date) -> Points:
 
 
 def latest_fcf_inputs(conn: Connection, ticker: str) -> tuple[dt.date, str, float, float] | None:
-    """Son dönemin (dönem sonu, para birimi, FCF, hisse sayısı)."""
+    """Latest period as (period end, currency, FCF, shares outstanding)."""
     rows = conn.execute(
         text(
             "SELECT f.period_end, f.item, f.value, f.currency FROM financial_items f "
@@ -174,12 +174,12 @@ def latest_fcf_inputs(conn: Connection, ticker: str) -> tuple[dt.date, str, floa
 def render_returns(results: list[Performance], cpi_change: float, usd_change: float) -> str:
     first = results[0]
     lines = [
-        f"Getiri: {first.start} → {first.end} ({first.years:.1f} yıl). "
-        f"Dönemde TÜFE {cpi_change:+.0%}, USD/TRY {usd_change:+.0%}.",
+        f"Returns: {first.start} → {first.end} ({first.years:.1f} years). "
+        f"Over the period CPI {cpi_change:+.0%}, USD/TRY {usd_change:+.0%}.",
         "",
-        f"{'':8}{'Toplam getiri':^33}{'Yıllık getiri':^33}",
-        f"{'Kod':<8}{'Nominal TL':>11}{'Reel TL':>11}{'USD':>11}"
-        f"{'Nominal TL':>11}{'Reel TL':>11}{'USD':>11}",
+        f"{'':8}{'Total return':^33}{'Annual return':^33}",
+        f"{'Ticker':<8}{'Nominal TRY':>11}{'Real TRY':>11}{'USD':>11}"
+        f"{'Nominal TRY':>11}{'Real TRY':>11}{'USD':>11}",
     ]
     for p in results:
         lines.append(
@@ -188,15 +188,15 @@ def render_returns(results: list[Performance], cpi_change: float, usd_change: fl
             f"{annualize(p.usd, p.years):>11.1%}"
         )
     if any(p.cpi_estimated for p in results):
-        lines.append("Not: son ayın TÜFE'si henüz yayımlanmadı; son yayımlanan ay kullanıldı.")
+        lines.append("Note: latest CPI month not yet published; last published month used.")
     return "\n".join(lines)
 
 
 def render_fcf(results: list[FcfYield], latest_cpi_month: dt.date) -> str:
     lines = [
-        f"FCF getirisi: yıl sonu TMS 29 FCF'si → {latest_cpi_month:%Y-%m} satın alma gücü",
-        f"{'Kod':<8}{'PB':<5}{'Dönem':<12}{'FCF (mr)':>10}{'PD (mr)':>10}"
-        f"{'FCF/PD':>9}{'Katsayı':>9}{'Bugünkü':>9}",
+        f"FCF yield: year-end IAS 29 FCF → {latest_cpi_month:%Y-%m} purchasing power",
+        f"{'Ticker':<8}{'Ccy':<5}{'Period':<12}{'FCF (bn)':>10}{'MCap (bn)':>10}"
+        f"{'FCF/MC':>9}{'Factor':>9}{'Restated':>9}",
     ]
     for r in results:
         lines.append(
@@ -205,14 +205,14 @@ def render_fcf(results: list[FcfYield], latest_cpi_month: dt.date) -> str:
             f"{r.restated_yield:>9.1%}"
         )
     lines.append(
-        "Katsayı > 1: yıl sonu lirası bugünün lirasından değerli; FCF bugüne taşınınca getiri "
-        "artar. USD raporlayanlarda katsayı 1."
+        "Factor > 1: a year-end lira is worth more than today's; restating FCF raises the yield. "
+        "USD reporters have a factor of 1."
     )
     return "\n".join(lines)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Reel TL / USD getiri ve TÜFE uyumlu FCF")
+    parser = argparse.ArgumentParser(description="Real TRY / USD returns and CPI-restated FCF")
     parser.add_argument("tickers", nargs="*", default=DEFAULT_TICKERS)
     parser.add_argument("--since", type=dt.date.fromisoformat, default=dt.date(2023, 1, 2))
     args = parser.parse_args()
@@ -225,7 +225,7 @@ def main() -> None:
         for ticker in [MARKET, *args.tickers]:
             prices = load_prices(conn, ticker, args.since)
             if len(prices) < 2:
-                print(f"{ticker}: fiyat yok, atlandı")
+                print(f"{ticker}: no prices, skipped")
                 continue
             results.append(performance(ticker, prices, cpi, usd))
         if results:
@@ -240,20 +240,20 @@ def main() -> None:
             inputs = latest_fcf_inputs(conn, ticker)
             prices = load_prices(conn, ticker, args.since)
             if inputs is None or not prices:
-                print(f"{ticker}: FCF ya da hisse sayısı yok, atlandı")
+                print(f"{ticker}: no FCF or share count, skipped")
                 continue
             period_end, currency, fcf, shares = inputs
             fx = 1.0
             if currency != "TRY":
                 if currency not in FX_CODES:
-                    print(f"{ticker}: {currency} kuru yok, atlandı")
+                    print(f"{ticker}: no {currency} rate, skipped")
                     continue
                 fx = value_asof(load_macro(conn, FX_CODES[currency]), prices[-1][0]) or math.nan
             yields.append(
                 fcf_yield(ticker, currency, period_end, fcf, shares, prices[-1][1], fx, cpi)
             )
         print(render_fcf(yields, max(cpi)))
-    print("\nEğitim amaçlıdır; yatırım tavsiyesi değildir.")
+    print("\nFor education; not investment advice.")
 
 
 if __name__ == "__main__":

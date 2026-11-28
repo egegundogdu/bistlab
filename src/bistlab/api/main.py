@@ -1,6 +1,6 @@
-"""bistlab HTTP API (salt okunur).
+"""bistlab HTTP API (read-only).
 
-Çalıştırma: `uv run uvicorn bistlab.api.main:app --reload` → http://127.0.0.1:8000/docs
+Run: `uv run uvicorn bistlab.api.main:app --reload` → http://127.0.0.1:8000/docs
 """
 
 from __future__ import annotations
@@ -60,11 +60,11 @@ GOVERNANCE_DIR = Path("data/kap")
 
 
 class FullSource(DataSource, CoreSource, ToolSource, CatalogSource, Protocol):
-    """API'nin ihtiyaç duyduğu tüm okuma işlemleri."""
+    """All read operations the API needs."""
 
 
 class DatabaseSource:
-    """Üretim veri kaynağı: PostgreSQL."""
+    """Production data source: PostgreSQL."""
 
     def securities(self) -> list[tuple[str, dt.date, float]]:
         query = text(
@@ -312,7 +312,7 @@ def funds_xray(
     try:
         return tools.fund_xray(source, fund, years, other)
     except KeyError as error:
-        raise HTTPException(status_code=404, detail=f"Fon raporu yok: {error}") from None
+        raise HTTPException(status_code=404, detail=f"No fund report: {error}") from None
 
 
 @app.get("/securities")
@@ -326,7 +326,7 @@ def prices(source: Source, code: str, since: dt.date = dt.date(2023, 1, 2)) -> P
     try:
         return services.price_history(source, ticker, since)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Fiyat yok: {ticker}") from None
+        raise HTTPException(status_code=404, detail=f"No prices: {ticker}") from None
 
 
 @app.get("/valuation/dcf/{code}")

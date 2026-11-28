@@ -13,7 +13,7 @@ def test_country_of() -> None:
     assert country_of("equity_foreign", "DE000ENER6Y0") == "DE"
     assert country_of("equity_tr", "TRASAHOL91Q5") == "TR"
     assert country_of("corporate_bond", "TRSKCTFK2610") == "TR"
-    assert country_of("fx_cash", None) == "Döviz nakit"
+    assert country_of("fx_cash", None) == "FX cash"
 
 
 def test_concentration_equal_weights() -> None:

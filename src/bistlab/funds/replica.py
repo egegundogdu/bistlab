@@ -1,7 +1,7 @@
-"""Getiri farkı: fonun gerçek getirisi ile rapordaki varlıklardan kurulan kopya portföy.
+"""Return gap: the fund's actual return vs. a replica built from its reported holdings.
 
-Rapor tarihindeki varlıklar ay boyunca hiç değişmeseydi fon ne kazanırdı? Fark; ay içi
-alım-satım kararlarını, işlem maliyetlerini ve yönetim ücretini birlikte gösterir.
+What would the fund have earned if the reported holdings had not changed all month?
+The gap combines intra-month trading, transaction costs and the management fee.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ Series = list[tuple[dt.date, float]]
 class Position:
     asset: str
     weight: float
-    tl_return: float | None  # None: fiyat verisi yok
+    tl_return: float | None  # None: no price data
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class ReplicaResult:
 
 
 def value_on(series: Series, day: dt.date) -> float | None:
-    """O gün ya da öncesindeki son değer."""
+    """Last value on or before the day."""
     index = bisect_right([date for date, _ in series], day)
     return None if index == 0 else series[index - 1][1]
 
@@ -56,11 +56,11 @@ def cash_return(annual_rate: float, days: int) -> float:
 
 
 def replica_return(positions: list[Position]) -> ReplicaResult:
-    """Verisi olan varlıkların ağırlıklarını 1'e ölçekleyip getiriyi hesaplar."""
+    """Return of the holdings with data, their weights rescaled to sum to 1."""
     known = [p for p in positions if p.tl_return is not None]
     covered = sum(p.weight for p in known)
     if covered <= 0:
-        raise ValueError("Getirisi hesaplanabilen varlık yok")
+        raise ValueError("No holdings with a computable return")
     contributions = [(p.asset, p.weight * (p.tl_return or 0.0) / covered) for p in known]
     contributions.sort(key=lambda item: item[1])
     total_weight = sum(p.weight for p in positions)
@@ -92,7 +92,7 @@ def load_fund_prices(session: Session, code: str) -> Series:
 
 
 def fx_series(currency: str, start: dt.date) -> Series:
-    """Yahoo'dan <PARA>TRY kuru (TCMB kuru değil, piyasa kuru)."""
+    """<CCY>TRY rate from Yahoo (market rate, not the central bank rate)."""
     history = fetch_history(f"{currency}TRY=X", start)
     return [
         (date, float(close)) for date, close in zip(history["date"], history["close"], strict=True)
@@ -100,10 +100,12 @@ def fx_series(currency: str, start: dt.date) -> Series:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fon ile kopya portföyün getiri farkı")
+    parser = argparse.ArgumentParser(
+        description="Return gap between a fund and its replica portfolio"
+    )
     parser.add_argument("fund")
-    parser.add_argument("--cash-rate", type=float, default=0.40, help="TL varlık getirisi")
-    parser.add_argument("--fee", type=float, default=0.025, help="Yıllık yönetim ücreti")
+    parser.add_argument("--cash-rate", type=float, default=0.40, help="Return on TRY assets")
+    parser.add_argument("--fee", type=float, default=0.025, help="Annual management fee")
     args = parser.parse_args()
     code = args.fund.upper()
 
@@ -115,7 +117,7 @@ def main() -> None:
         days = (end - start).days
         fund_return = period_return(fund_prices, start, end)
         if fund_return is None or days <= 0:
-            raise SystemExit("Rapor sonrası fon fiyatı yok; TEFAS fiyatlarını güncelle")
+            raise SystemExit("No fund prices after the report; update TEFAS prices")
 
         fx_cache: dict[str, float | None] = {"TRY": 0.0}
 
@@ -130,31 +132,31 @@ def main() -> None:
         for holding in holdings:
             symbol = to_yahoo(holding.asset, holding.asset_type)
             fx = fx_return(holding.currency)
-            if symbol is not None:  # hisse
+            if symbol is not None:  # stock
                 local = period_return(load_closes(session, storage_ticker(symbol)), start, end)
                 tl = None if local is None or fx is None else to_tl(local, fx)
             elif holding.asset_type == "fx_cash":
                 tl = fx
-            else:  # tahvil, bono, repo, teminat, para piyasası fonu
+            else:  # bonds, bills, repo, margin, money market funds
                 tl = cash_return(args.cash_rate, days)
             positions.append(Position(holding.asset, holding.weight, tl))
 
     result = replica_return(positions)
     gap = fund_return - result.portfolio_return
-    print(f"{code} getiri farkı: {start} → {end} ({days} gün)")
-    print(f"  Fonun gerçek getirisi   %{fund_return * 100:7.2f}")
-    print(f"  Kopya portföy getirisi  %{result.portfolio_return * 100:7.2f}")
-    print(f"  Fark (fon − kopya)      %{gap * 100:7.2f}")
+    print(f"{code} return gap: {start} → {end} ({days} days)")
+    print(f"  Fund actual return      {fund_return * 100:7.2f}%")
+    print(f"  Replica return          {result.portfolio_return * 100:7.2f}%")
+    print(f"  Gap (fund − replica)    {gap * 100:7.2f}%")
     fee = cash_return(args.fee, days)
-    print(f"  Bu dönemin ücret payı   %{fee * 100:7.2f} (fiyata gömülü)")
-    print(f"  Kapsanan ağırlık        %{result.covered_weight * 100:7.2f}")
-    print("En çok katkı:")
+    print(f"  Fee for the period      {fee * 100:7.2f}% (in the price)")
+    print(f"  Covered weight          {result.covered_weight * 100:7.2f}%")
+    print("Top contributors:")
     for asset, value in reversed(result.contributions[-5:]):
-        print(f"  {asset:<16} %{value * 100:+.2f}")
-    print("En çok zarar:")
+        print(f"  {asset:<16} {value * 100:+.2f}%")
+    print("Top detractors:")
     for asset, value in result.contributions[:5]:
-        print(f"  {asset:<16} %{value * 100:+.2f}")
-    print("Not: Geçmiş getiri analizi; yatırım tavsiyesi değildir.")
+        print(f"  {asset:<16} {value * 100:+.2f}%")
+    print("Note: historical analysis; not investment advice.")
 
 
 if __name__ == "__main__":

@@ -1,1 +1,1 @@
-"""Stres testleri."""
+"""Stress tests."""
