@@ -9,12 +9,12 @@ const API = process.env.NEXT_PUBLIC_BISTLAB_API_URL ?? "http://127.0.0.1:8000";
 const ERROR_COLOR = "#E5735A";
 const ACTIVE = "#2B4A75";
 
-/** Oran gösterimi (σ, faiz, baz): pct'nin +/− işareti burada anlamsız. */
+/** Unsigned rate (σ, interest rate, basis): pct's +/− sign is meaningless here. */
 const p = (value: number, digits = 1): string => pct(value, digits).replace("+", "");
 
 export type Choice = { ticker: string; close: number };
 
-/** Gecikmeli (250 ms) GET; yol değiştikçe önceki isteği iptal eder. */
+/** Debounced (250 ms) GET; aborts the previous request when the path changes. */
 function useApi<T>(path: string | null): { data: T | null; error: string | null } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,14 +28,14 @@ function useApi<T>(path: string | null): { data: T | null; error: string | null 
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
           setError(
-            typeof body?.detail === "string" ? body.detail : `API hatası (${response.status})`,
+            typeof body?.detail === "string" ? body.detail : `API error (${response.status})`,
           );
           return;
         }
         setData((await response.json()) as T);
         setError(null);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") setError("API'ye ulaşılamıyor.");
+        if ((e as Error).name !== "AbortError") setError("API unreachable.");
       }
     }, 250);
     return () => {
@@ -132,31 +132,31 @@ const GREEKS: {
     key: "delta",
     label: "Delta Δ",
     digits: 3,
-    hint: "Dayanak 1 TL artınca opsiyon fiyatının yaklaşık değişimi; delta hedge'de tutulacak hisse oranı.",
+    hint: "Approximate change in the option price when the underlying rises by ₺1; the share count held in a delta hedge.",
   },
   {
     key: "gamma",
     label: "Gamma Γ",
     digits: 4,
-    hint: "Deltanın dayanağa duyarlılığı; hedge'in ne sık yenilenmesi gerektiğini söyler.",
+    hint: "Sensitivity of delta to the underlying; tells you how often the hedge must be rebalanced.",
   },
   {
     key: "vega",
     label: "Vega ν",
     digits: 3,
-    hint: "Oynaklık duyarlılığı; belirsizlik arttıkça hem alım hem satım değerlenir.",
+    hint: "Sensitivity to volatility; more uncertainty makes both calls and puts more valuable.",
   },
   {
     key: "theta",
     label: "Theta Θ",
     digits: 3,
-    hint: "Zaman geçtikçe değer kaybı (zaman erimesi).",
+    hint: "Value lost as time passes (time decay).",
   },
   {
     key: "rho",
     label: "Rho ρ",
     digits: 3,
-    hint: "Faiz duyarlılığı; TL faizleri yüksekken küçümsenecek bir etki değil.",
+    hint: "Sensitivity to interest rates; far from negligible when TRY rates are high.",
   },
 ];
 
@@ -211,14 +211,14 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
 
   return (
     <div className="grid">
-      {/* --- Sözleşme ------------------------------------------------------ */}
+      {/* --- Contract ------------------------------------------------------ */}
       <section className="card">
         <div className="card-head">
-          <h2>Sözleşme</h2>
-          <span className="tag">Türev Araçlar</span>
+          <h2>Contract</h2>
+          <span className="tag">Derivatives</span>
         </div>
         <div style={{ display: "grid", gap: 16 }}>
-          <Field label="Dayanak">
+          <Field label="Underlying">
             <select
               value={ticker}
               onChange={(e) => {
@@ -247,12 +247,12 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
                 onClick={() => setOption(v)}
                 style={{ cursor: "pointer", background: option === v ? ACTIVE : "transparent" }}
               >
-                {v === "call" ? "Alım (call)" : "Satım (put)"}
+                {v === "call" ? "Call" : "Put"}
               </button>
             ))}
           </div>
           <Slider
-            label="Kullanım fiyatı"
+            label="Strike"
             display={`${num(strike)} ₺ · K/S ${num(moneyness, 2)}`}
             value={moneyness}
             min={0.7}
@@ -261,8 +261,8 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             onChange={setMoneyness}
           />
           <Slider
-            label="Vade"
-            display={`${days} gün`}
+            label="Maturity"
+            display={`${days} days`}
             value={days}
             min={1}
             max={365}
@@ -270,7 +270,7 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             onChange={setDays}
           />
           <Slider
-            label="Oynaklık (σ, yıllık)"
+            label="Volatility (σ, annual)"
             display={p(vol, 0)}
             value={vol}
             min={0.05}
@@ -279,7 +279,7 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             onChange={setVol}
           />
           <Slider
-            label="Faiz (yıllık efektif)"
+            label="Interest rate (annual effective)"
             display={p(rate, 2)}
             value={rate}
             min={0}
@@ -288,63 +288,63 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             onChange={setRate}
           />
           <p className="note" style={{ margin: 0 }}>
-            Dayanak fiyatı son kapanış ({num(spot)} ₺). Efektif faiz modelde sürekli bileşiğe
-            çevrilir{r ? ` (${p(r.continuous_rate, 2)})` : ""}.
+            The underlying price is the last close ({num(spot)} ₺). The effective rate is converted to
+            continuous compounding in the model{r ? ` (${p(r.continuous_rate, 2)})` : ""}.
           </p>
         </div>
       </section>
 
-      {/* --- Üç yöntem ----------------------------------------------------- */}
+      {/* --- Three methods ------------------------------------------------- */}
       <section className="card span-2">
         <div className="card-head">
-          <h2>Üç yöntem, tek fiyat</h2>
+          <h2>Three methods, one price</h2>
           <span className="tag">
-            {ticker} · {option === "call" ? "alım" : "satım"} · {days} gün
+            {ticker} · {option} · {days} days
           </span>
         </div>
         <ErrorLine message={report.error} />
         {r ? (
           <>
             <dl className="stats">
-              <Stat label="Black-Scholes" value={`${num(r.black_scholes)} ₺`} hint="Kapalı form" />
+              <Stat label="Black-Scholes" value={`${num(r.black_scholes)} ₺`} hint="Closed form" />
               <Stat
-                label="Binom (Avrupa)"
+                label="Binomial (European)"
                 value={`${num(r.binomial_european)} ₺`}
-                hint="Ağaç; adım arttıkça BS'ye yakınsar"
+                hint="Tree; converges to BS as steps increase"
               />
               <Stat
-                label="Binom (Amerikan)"
+                label="Binomial (American)"
                 value={`${num(r.binomial_american)} ₺`}
-                hint="Erken kullanım hakkıyla"
+                hint="With the right to exercise early"
               />
               <Stat
                 label="Monte Carlo"
                 value={`${num(r.monte_carlo)} ₺`}
-                hint={`%95 aralık ±${num(ci)} ₺`}
+                hint={`95% interval ±${num(ci)} ₺`}
               />
             </dl>
             <p className="note">
-              BS − binom farkı {num(r.black_scholes - r.binomial_european, 4)} ₺; Monte Carlo BS&apos;yi{" "}
+              BS − binomial gap {num(r.black_scholes - r.binomial_european, 4)} ₺; Monte Carlo puts BS{" "}
               {Math.abs(r.monte_carlo - r.black_scholes) <= ci
-                ? "%95 güven aralığı içinde"
-                : "%95 güven aralığı dışında"}{" "}
-              buluyor. Put-call parite farkı: {num(r.put_call_parity_gap, 6)}.
+                ? "inside its 95% confidence interval"
+                : "outside its 95% confidence interval"}
+              . Put-call parity gap: {num(r.put_call_parity_gap, 6)}.
             </p>
             <p className="note">
-              Erken kullanım primi (Amerikan − Avrupa): <span className="mono">{num(early, 4)} ₺</span>
+              Early-exercise premium (American − European): <span className="mono">{num(early, 4)} ₺</span>
               {option === "call"
-                ? " — temettüsüz alımda erken kullanmak hiçbir zaman optimal değil, sıfır olmalı."
-                : " — satımda yüksek faiz, parayı erken almayı değerli kılar."}
+                ? " — for a call on a non-dividend stock early exercise is never optimal, so this should be zero."
+                : " — for a put, high rates make receiving the strike early valuable."}
             </p>
             <p className="note">
-              İçsel değer {num(intrinsic)} ₺ · zaman değeri {num(timeValue)} ₺
+              Intrinsic value {num(intrinsic)} ₺ · time value {num(timeValue)} ₺
               {timeValue < 0
-                ? " — Avrupa satımda negatif zaman değeri: yüksek faizde kullanımı beklemenin maliyeti."
+                ? " — negative time value on a European put: the cost of having to wait to exercise when rates are high."
                 : "."}
             </p>
           </>
         ) : !report.error ? (
-          <p className="note">Hesaplanıyor…</p>
+          <p className="note">Calculating…</p>
         ) : null}
       </section>
 
@@ -371,19 +371,19 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
         ) : null}
       </section>
 
-      {/* --- Zımni oynaklık ------------------------------------------------ */}
+      {/* --- Implied volatility -------------------------------------------- */}
       <section className="card">
         <div className="card-head">
-          <h2>Zımni oynaklık</h2>
-          <span className="tag">Piyasa ne fiyatlıyor?</span>
+          <h2>Implied volatility</h2>
+          <span className="tag">What is the market pricing in?</span>
         </div>
         <div style={{ display: "grid", gap: 16 }}>
-          <Field label="Piyasa fiyatı (₺)">
+          <Field label="Market price (₺)">
             <input
               inputMode="decimal"
               value={market}
               onChange={(e) => setMarket(e.target.value)}
-              placeholder={r ? `ör. ${num(r.black_scholes * 1.1)}` : "ör. 12,50"}
+              placeholder={r ? `e.g. ${num(r.black_scholes * 1.1)}` : "e.g. 12.50"}
               style={inputStyle}
             />
           </Field>
@@ -391,38 +391,38 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
           {marketPrice > 0 && implied.data ? (
             <>
               <dl className="stats">
-                <Stat label="Zımni σ" value={p(implied.data.implied_vol, 1)} />
-                <Stat label="Sürgüdeki σ" value={p(vol, 1)} />
+                <Stat label="Implied σ" value={p(implied.data.implied_vol, 1)} />
+                <Stat label="Slider σ" value={p(vol, 1)} />
               </dl>
               <p className="note" style={{ margin: 0 }}>
-                Bu fiyat, sürgüdeki varsayımdan{" "}
-                {implied.data.implied_vol > vol ? "daha yüksek" : "daha düşük"} bir oynaklık
-                fiyatlıyor. Ters DCF&apos;nin opsiyondaki karşılığı: fiyattan varsayımı geri çözmek.
+                This price implies {implied.data.implied_vol > vol ? "higher" : "lower"} volatility than
+                the slider assumption. It is the option counterpart of a reverse DCF: solving for the
+                assumption from the price.
               </p>
             </>
           ) : (
             <p className="note" style={{ margin: 0 }}>
-              Bir fiyat gir: aynı dayanak, kullanım fiyatı, vade ve faizle σ geri çözülür.
+              Enter a price: σ is solved for with the same underlying, strike, maturity and rate.
             </p>
           )}
         </div>
       </section>
 
-      {/* --- Vadeli hedge -------------------------------------------------- */}
+      {/* --- Futures hedge ------------------------------------------------- */}
       <section className="card">
         <div className="card-head">
-          <h2>Vadeli ile hedge</h2>
-          <span className="tag">XU030 · VİOP</span>
+          <h2>Hedge with index futures</h2>
+          <span className="tag">XU030 · VIOP</span>
         </div>
         <div style={{ display: "grid", gap: 16 }}>
-          <Field label="Portföydeki hisseler">
+          <Field label="Stocks in the portfolio">
             <input
               value={hedgeTickers}
               onChange={(e) => setHedgeTickers(e.target.value)}
               style={inputStyle}
             />
           </Field>
-          <Field label="Portföy değeri (₺)">
+          <Field label="Portfolio value (₺)">
             <input
               type="number"
               min={1}
@@ -433,20 +433,20 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             />
           </Field>
           <Slider
-            label="Vade"
-            display={`${hedgeDays} gün`}
+            label="Maturity"
+            display={`${hedgeDays} days`}
             value={hedgeDays}
             min={1}
             max={365}
             step={1}
             onChange={setHedgeDays}
           />
-          <Field label="Kontrat çarpanı (isteğe bağlı)">
+          <Field label="Contract multiplier (optional)">
             <input
               inputMode="decimal"
               value={multiplier}
               onChange={(e) => setMultiplier(e.target.value)}
-              placeholder="ör. 10"
+              placeholder="e.g. 10"
               style={inputStyle}
             />
           </Field>
@@ -455,30 +455,30 @@ export function OptionLab({ choices }: { choices: Choice[] }) {
             <>
               <dl className="stats">
                 <Stat
-                  label="Vadeli fiyat"
+                  label="Futures price"
                   value={num(h.futures_price)}
-                  hint={`Baz ${p(h.basis_pct, 2)}`}
+                  hint={`Basis ${p(h.basis_pct, 2)}`}
                 />
-                <Stat label="Hedge oranı (β)" value={num(h.hedge_ratio, 2)} />
+                <Stat label="Hedge ratio (β)" value={num(h.hedge_ratio, 2)} />
                 <Stat
-                  label="Açığa satılacak"
-                  value={`${num(h.notional / 1e6, 2)} mn ₺`}
+                  label="Notional to sell"
+                  value={`${num(h.notional / 1e6, 2)} m ₺`}
                   hint={
                     h.contracts !== null
-                      ? `${num(h.contracts, 1)} kontrat`
-                      : "Çarpan girilirse kontrat sayısı"
+                      ? `${num(h.contracts, 1)} contracts`
+                      : "Enter a multiplier for the contract count"
                   }
                 />
                 <Stat
-                  label="Risk azalması"
+                  label="Risk reduction"
                   value={p(h.risk_reduction, 0)}
                   hint={`σ ${p(h.unhedged_vol, 1)} → ${p(h.hedged_vol, 1)}`}
                 />
               </dl>
               <p className="note" style={{ margin: 0 }}>
-                Hedge oranı geçmiş getirilerden; geleceğe aynen taşınacağının garantisi yok. Vadeli
-                fiyat taşıma maliyetinden (faiz {p(rate, 1)}) hesaplanıyor, gerçek VİOP kotasyonu
-                değil.
+                The hedge ratio is estimated from past returns and may not hold in the future. The
+                futures price comes from cost of carry (rate {p(rate, 1)}), not an actual exchange
+                quote.
               </p>
             </>
           ) : null}

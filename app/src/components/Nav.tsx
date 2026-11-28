@@ -3,10 +3,10 @@ import Link from "next/link";
 import { get, type Securities } from "@/lib/api";
 
 const LINKS = [
-  { href: "/sirket/THYAO", label: "Şirket" },
-  { href: "/opsiyon", label: "Opsiyon" },
-  { href: "/tarayici", label: "Tarayıcı" },
-  { href: "/portfoy", label: "Portföy" },
+  { href: "/company/THYAO", label: "Company" },
+  { href: "/options", label: "Options" },
+  { href: "/screener", label: "Screener" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/docs", label: "API", external: true },
 ];
 
@@ -17,7 +17,7 @@ export async function Nav() {
     <header style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
       <nav
         className="container"
-        aria-label="Ana menü"
+        aria-label="Main menu"
         style={{ padding: "14px 32px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 28 }}
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text)", textDecoration: "none" }}>
@@ -40,26 +40,26 @@ export async function Nav() {
             ),
           )}
         </div>
-        <form action="/sirket" method="get" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <label htmlFor="kod" style={{ position: "absolute", left: -9999 }}>
-            Kod ara
+        <form action="/company" method="get" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <label htmlFor="ticker" style={{ position: "absolute", left: -9999 }}>
+            Search ticker
           </label>
           <input
-            id="kod"
-            name="kod"
-            list="kodlar"
-            placeholder="Kod ara (THYAO, XU100…)"
+            id="ticker"
+            name="ticker"
+            list="tickers"
+            placeholder="Search ticker (THYAO, XU100…)"
             autoComplete="off"
             style={{
               width: 240, height: 40, padding: "0 14px", borderRadius: 8, border: "1px solid var(--border-strong)",
               background: "var(--surface)", color: "var(--text)", font: "inherit",
             }}
           />
-          <datalist id="kodlar">
+          <datalist id="tickers">
             {securities?.results.map((s) => <option key={s.ticker} value={s.ticker} />)}
           </datalist>
           <button type="submit" className="pill" style={{ minHeight: 40, background: "transparent", cursor: "pointer" }}>
-            Git
+            Go
           </button>
         </form>
       </nav>

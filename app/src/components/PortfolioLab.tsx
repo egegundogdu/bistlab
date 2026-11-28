@@ -13,7 +13,7 @@ const GREEN = "#4CAF7A";
 const AMBER = "#E0A84A";
 const ACTIVE = "#2B4A75";
 
-/** İşaretsiz oran (σ, faiz, VaR); getiri ve Sharpe için işaretli pct/num kullanılır. */
+/** Unsigned rate (σ, risk-free, VaR); returns and Sharpe use signed pct/num. */
 const rate = (v: number, digits = 1): string => pct(v, digits).replace("+", "");
 
 const selectStyle: CSSProperties = {
@@ -40,7 +40,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-/* ---------------------------------------------------------------- etkin sınır */
+/* --------------------------------------------------------- efficient frontier */
 
 function Frontier({ d }: { d: PortfolioRisk }) {
   const W = 640;
@@ -50,9 +50,9 @@ function Frontier({ d }: { d: PortfolioRisk }) {
   const T = 16;
   const B = 40;
   const special: { p: FrontierPoint; label: string; color: string }[] = [
-    { p: d.current, label: "Senin portföyün", color: BLUE },
-    { p: d.min_variance, label: "Min varyans", color: GREEN },
-    { p: d.max_sharpe, label: "Maks Sharpe", color: AMBER },
+    { p: d.current, label: "Your portfolio", color: BLUE },
+    { p: d.min_variance, label: "Min variance", color: GREEN },
+    { p: d.max_sharpe, label: "Max Sharpe", color: AMBER },
   ];
   const xs = [...d.frontier.map((p) => p.volatility), ...d.asset_volatility, d.current.volatility];
   const ys = [
@@ -94,7 +94,7 @@ function Frontier({ d }: { d: PortfolioRisk }) {
         </text>
       ))}
       <text x={(L + W - R) / 2} y={H - 6} fontSize={11} textAnchor="middle" fill="currentColor" opacity={0.6}>
-        Oynaklık (σ, yıllık)
+        Volatility (σ, annual)
       </text>
       <text
         x={14}
@@ -105,7 +105,7 @@ function Frontier({ d }: { d: PortfolioRisk }) {
         opacity={0.6}
         transform={`rotate(-90 14 ${(T + H - B) / 2})`}
       >
-        Beklenen getiri (μ)
+        Expected return (μ)
       </text>
 
       <line
@@ -118,7 +118,7 @@ function Frontier({ d }: { d: PortfolioRisk }) {
         opacity={0.7}
       />
       <text x={W - R - 4} y={sy(d.risk_free) - 6} fontSize={11} textAnchor="end" fill={ERROR_COLOR}>
-        risksiz faiz {rate(d.risk_free, 0)}
+        {`risk-free ${rate(d.risk_free, 0)}`}
       </text>
 
       <polyline points={line} fill="none" stroke={BLUE} strokeWidth={2} opacity={0.5} />
@@ -153,10 +153,10 @@ function Frontier({ d }: { d: PortfolioRisk }) {
   );
 }
 
-/* ---------------------------------------------------------- korelasyon ısı haritası */
+/* ---------------------------------------------------------- correlation heat map */
 
 function Heatmap({ d }: { d: PortfolioRisk }) {
-  const cell: CSSProperties = { padding: "6px 4px", textAlign: "center", fontSize: 12 };
+  const cell: CSSProperties = { padding: "6px 3px", textAlign: "center", fontSize: 11 };
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
@@ -198,7 +198,7 @@ function Heatmap({ d }: { d: PortfolioRisk }) {
   );
 }
 
-/* ----------------------------------------------------------------- ana bileşen */
+/* -------------------------------------------------------------- main component */
 
 export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
   const tickers = initial.tickers;
@@ -220,7 +220,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
 
   useEffect(() => {
     if (first.current) {
-      first.current = false; // ilk durum sunucudan geldi (eşit ağırlık, varsayılanlar)
+      first.current = false; // the initial state came from the server (equal weight, defaults)
       return;
     }
     const controller = new AbortController();
@@ -230,14 +230,14 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
           setError(
-            typeof body?.detail === "string" ? body.detail : `API hatası (${response.status})`,
+            typeof body?.detail === "string" ? body.detail : `API error (${response.status})`,
           );
           return;
         }
         setD((await response.json()) as PortfolioRisk);
         setError(null);
       } catch (e) {
-        if ((e as Error).name !== "AbortError") setError("API'ye ulaşılamıyor.");
+        if ((e as Error).name !== "AbortError") setError("API unreachable.");
       }
     }, 250);
     return () => {
@@ -253,11 +253,11 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
 
   return (
     <div className="grid">
-      {/* --- Ağırlıklar --------------------------------------------------- */}
+      {/* --- Weights ------------------------------------------------------- */}
       <section className="card span-2">
         <div className="card-head">
-          <h2>Ağırlıklar</h2>
-          <span className="tag">SPL Düzey 3 · Portföy yönetimi</span>
+          <h2>Weights</h2>
+          <span className="tag">Portfolio Management</span>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           <button
@@ -266,7 +266,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
             style={{ cursor: "pointer" }}
             onClick={() => setRaw(tickers.map(() => 50))}
           >
-            Eşit ağırlık
+            Equal weight
           </button>
           <button
             type="button"
@@ -274,7 +274,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
             style={{ cursor: "pointer", background: ACTIVE }}
             onClick={() => apply(d.min_variance.weights)}
           >
-            Min varyansı uygula
+            Apply min variance
           </button>
           <button
             type="button"
@@ -282,10 +282,10 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
             style={{ cursor: "pointer", background: ACTIVE }}
             onClick={() => apply(d.max_sharpe.weights)}
           >
-            Maks Sharpe&apos;ı uygula
+            Apply max Sharpe
           </button>
           <label style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-            <span className="note">Üst sınır</span>
+            <span className="note">Weight cap</span>
             <select
               value={maxWeight}
               onChange={(e) => setMaxWeight(Number(e.target.value))}
@@ -293,17 +293,17 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
             >
               {[1, 0.5, 0.4, 0.25, 0.15].map((v) => (
                 <option key={v} value={v}>
-                  {v === 1 ? "yok" : rate(v, 0)}
+                  {v === 1 ? "none" : rate(v, 0)}
                 </option>
               ))}
             </select>
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="note">Dönem</span>
+            <span className="note">Period</span>
             <select value={years} onChange={(e) => setYears(Number(e.target.value))} style={selectStyle}>
               {[1, 2, 3].map((v) => (
                 <option key={v} value={v}>
-                  {v} yıl
+                  {v} yr
                 </option>
               ))}
             </select>
@@ -312,11 +312,11 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr className="note" style={{ fontSize: 13 }}>
-              <th style={{ textAlign: "left", fontWeight: 500, padding: "4px 0" }}>Hisse</th>
+              <th style={{ textAlign: "left", fontWeight: 500, padding: "4px 0" }}>Stock</th>
               <th style={{ fontWeight: 500 }} />
-              <th style={{ textAlign: "right", fontWeight: 500 }}>Seninki</th>
+              <th style={{ textAlign: "right", fontWeight: 500 }}>Yours</th>
               <th style={{ textAlign: "right", fontWeight: 500, color: GREEN }}>Min var.</th>
-              <th style={{ textAlign: "right", fontWeight: 500, color: AMBER }}>Maks Sh.</th>
+              <th style={{ textAlign: "right", fontWeight: 500, color: AMBER }}>Max Sh.</th>
               <th style={{ textAlign: "right", fontWeight: 500 }}>μ / σ</th>
             </tr>
           </thead>
@@ -326,7 +326,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
               return (
                 <tr key={t}>
                   <td style={{ padding: "6px 12px 6px 0", whiteSpace: "nowrap" }}>
-                    <Link href={`/sirket/${t}`} className="mono" style={{ color: "var(--text)" }}>
+                    <Link href={`/company/${t}`} className="mono" style={{ color: "var(--text)" }}>
                       {t}
                     </Link>
                   </td>
@@ -338,7 +338,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
                       step={1}
                       value={w}
                       onChange={(e) => setOne(i, Number(e.target.value))}
-                      aria-label={`${t} ağırlığı`}
+                      aria-label={`${t} weight`}
                       style={{ width: "100%" }}
                     />
                   </td>
@@ -361,7 +361,7 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
         </table>
         {!capOk ? (
           <p className="note" style={{ color: ERROR_COLOR }}>
-            {tickers.length} hisse × {rate(maxWeight, 0)} &lt; %100: ağırlıklar 1&apos;e tamamlanamaz.
+            {tickers.length} stocks × {rate(maxWeight, 0)} &lt; 100%: the weights cannot sum to 1.
           </p>
         ) : null}
         {error ? (
@@ -374,30 +374,30 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
       {/* --- Risk ---------------------------------------------------------- */}
       <section className="card">
         <div className="card-head">
-          <h2>Gerçekleşen risk</h2>
+          <h2>Realised risk</h2>
           <span className="tag">
             {d.start} → {d.end}
           </span>
         </div>
         <dl className="stats">
-          <Stat label="Yıllık getiri" value={pct(d.annual_return, 1)} hint="Nominal TL" />
-          <Stat label="Oynaklık (σ)" value={rate(d.volatility, 1)} hint="Yıllık" />
+          <Stat label="Annual return" value={pct(d.annual_return, 1)} hint="Nominal TRY" />
+          <Stat label="Volatility (σ)" value={rate(d.volatility, 1)} hint="Annualised" />
           <Stat
             label="Sharpe"
             value={num(d.sharpe, 2)}
-            hint={`Risksiz ${rate(d.risk_free, 0)}'a göre`}
+            hint={`Against ${rate(d.risk_free, 0)} risk-free`}
           />
-          <Stat label="Maks. düşüş" value={pct(d.max_drawdown, 1)} hint="Zirveden dibe" />
+          <Stat label="Max drawdown" value={pct(d.max_drawdown, 1)} hint="Peak to trough" />
           <Stat
-            label={`VaR %${num(d.level * 100, 0)}`}
+            label={`VaR ${num(d.level * 100, 0)}%`}
             value={rate(d.var_historical, 2)}
-            hint={`Günlük, tarihsel · normal ${rate(d.var_parametric, 2)}`}
+            hint={`Daily, historical · normal ${rate(d.var_parametric, 2)}`}
           />
-          <Stat label="CVaR" value={rate(d.cvar, 2)} hint="VaR'ı aşan günlerin ort. kaybı" />
+          <Stat label="CVaR" value={rate(d.cvar, 2)} hint="Average loss on days beyond VaR" />
         </dl>
         <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
           <label style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Risksiz faiz</span>
+            <span>Risk-free rate</span>
             <span className="mono">{rate(riskFree, 2)}</span>
           </label>
           <input
@@ -407,60 +407,60 @@ export function PortfolioLab({ initial }: { initial: PortfolioRisk }) {
             step={0.0025}
             value={riskFree}
             onChange={(e) => setRiskFree(Number(e.target.value))}
-            aria-label="Risksiz faiz"
+            aria-label="Risk-free rate"
             style={{ width: "100%" }}
           />
         </div>
         <p className="note">
           {d.sharpe < 0
-            ? "Getiri risksiz TL faizinin altında: bu dönemde hisse riski taşımak, mevduata göre ödüllendirilmedi."
-            : "Getiri risksiz faizin üstünde: alınan risk ödüllendirildi."}{" "}
-          VaR, CVaR {d.observations} günlük getiriden. Hedge için{" "}
-          <Link href="/opsiyon" style={{ color: "var(--text)" }}>
-            Opsiyon → Vadeli ile hedge
+            ? "Return below the risk-free TRY rate: over this period, taking equity risk was not rewarded versus a deposit."
+            : "Return above the risk-free rate: the risk taken was rewarded."}{" "}
+          VaR and CVaR from {d.observations} daily returns. To hedge, see{" "}
+          <Link href="/options" style={{ color: "var(--text)" }}>
+            Options → Hedge with index futures
           </Link>
           .
         </p>
       </section>
 
-      {/* --- Etkin sınır ----------------------------------------------------- */}
+      {/* --- Efficient frontier -------------------------------------------- */}
       <section className="card span-2">
         <div className="card-head">
-          <h2>Etkin sınır</h2>
-          <span className="tag">Markowitz · açığa satış yok</span>
+          <h2>Efficient frontier</h2>
+          <span className="tag">Markowitz · long only</span>
         </div>
         <Frontier d={d} />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 13 }} className="note">
           <span>
-            <span style={{ color: BLUE }}>●</span> Senin portföyün: μ {rate(d.current.expected_return)} ·
+            <span style={{ color: BLUE }}>●</span> Your portfolio: μ {rate(d.current.expected_return)} ·
             σ {rate(d.current.volatility)} · Sharpe {num(d.current.sharpe, 2)}
           </span>
           <span>
-            <span style={{ color: GREEN }}>●</span> Min varyans: σ {rate(d.min_variance.volatility)}
+            <span style={{ color: GREEN }}>●</span> Min variance: σ {rate(d.min_variance.volatility)}
           </span>
           <span>
-            <span style={{ color: AMBER }}>●</span> Maks Sharpe: {num(d.max_sharpe.sharpe, 2)}
+            <span style={{ color: AMBER }}>●</span> Max Sharpe: {num(d.max_sharpe.sharpe, 2)}
           </span>
         </div>
         <p className="note">
-          μ = günlük aritmetik ortalama × 252 (gerçekleşen yıllık getiriden farklı tanım). Maks Sharpe
-          portföyü geçmişin kazananlarına yığılır — üst sınır koymadan bak, sonra %40 ile karşılaştır.
-          Bu, Markowitz&apos;in &quot;hata maksimize edici&quot; ünü: tahmin hatası en çok ağırlık
-          verilen hissede büyür.
+          μ = mean daily return × 252 (a different definition from the realised annual return). The
+          max-Sharpe portfolio piles into past winners — look at it with no cap, then with 40%. This
+          is why Markowitz is called an &quot;error maximiser&quot;: estimation error is largest where
+          the weight is largest.
         </p>
       </section>
 
-      {/* --- Korelasyon -------------------------------------------------------- */}
+      {/* --- Correlation --------------------------------------------------- */}
       <section className="card">
         <div className="card-head">
-          <h2>Korelasyon</h2>
-          <span className="tag">Günlük getiriler</span>
+          <h2>Correlation</h2>
+          <span className="tag">Daily returns</span>
         </div>
         <Heatmap d={d} />
         <p className="note">
-          Kırmızı birlikte, mavi ters hareket. Hisseler aynı makro faktöre (TL, faiz) bağlıysa
-          çeşitlendirme sınırlı kalır: min varyans σ {rate(d.min_variance.volatility)}, eşit ağırlık σ{" "}
-          {rate(d.volatility)}.
+          Red moves together, blue moves in opposite directions. When stocks share a macro driver (the
+          lira, interest rates), diversification is limited: min variance σ{" "}
+          {rate(d.min_variance.volatility)} vs equal weight σ {rate(d.volatility)}.
         </p>
       </section>
     </div>

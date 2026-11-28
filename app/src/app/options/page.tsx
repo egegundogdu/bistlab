@@ -1,7 +1,7 @@
 import { OptionLab, type Choice } from "@/components/OptionLab";
 import { get, type Securities } from "@/lib/api";
 
-export const metadata = { title: "Opsiyon · bistlab" };
+export const metadata = { title: "Options · bistlab" };
 
 export default async function OptionPage() {
   const securities = await get<Securities>("/securities");
@@ -13,16 +13,16 @@ export default async function OptionPage() {
   return (
     <div className="container" style={{ padding: "32px 32px 48px" }}>
       <header style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>Opsiyon laboratuvarı</h1>
+        <h1 style={{ margin: 0 }}>Options lab</h1>
         <p className="note" style={{ maxWidth: 760 }}>
-          Aynı opsiyonu üç yöntemle fiyatlıyoruz: Black-Scholes kapalı formu, binom ağacı ve Monte
-          Carlo. Yöntemlerin aynı yere yakınsaması modelin, ayrıştıkları yer (erken kullanım)
-          sözleşmenin kendisi hakkında bilgi verir. Sonra tersine: piyasa fiyatından oynaklığı geri
-          çözüyor ve endeks vadelisiyle portföy riskini azaltıyoruz.
+          The same option priced three ways: the Black-Scholes closed form, a binomial tree and Monte
+          Carlo. Where the methods converge tells you about the model; where they diverge (early
+          exercise) tells you about the contract. Then in reverse: solving for volatility from a
+          market price, and cutting portfolio risk with index futures.
         </p>
       </header>
       {choices.length === 0 ? (
-        <div className="card error">API&apos;ye ulaşılamıyor; uvicorn çalışıyor mu?</div>
+        <div className="card error">API unreachable — is uvicorn running?</div>
       ) : (
         <OptionLab choices={choices} />
       )}

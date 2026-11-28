@@ -1,4 +1,4 @@
-// bistlab API istemcisi (sunucu tarafında çalışır).
+// bistlab API client (runs on the server).
 const API = process.env.BISTLAB_API_URL ?? "http://127.0.0.1:8000";
 
 export async function get<T>(path: string): Promise<T | null> {
