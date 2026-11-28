@@ -1,4 +1,4 @@
-"""Temel finansal oranlar."""
+"""Core financial ratios."""
 
 from __future__ import annotations
 
@@ -9,25 +9,25 @@ from bistlab.common import column
 
 
 def current_ratio(current_assets: float, current_liabilities: float) -> float:
-    """Cari oran = dönen varlıklar / kısa vadeli yükümlülükler."""
+    """Current ratio = current assets / current liabilities."""
     if current_liabilities <= 0:
-        raise ValueError("Kısa vadeli yükümlülükler pozitif olmalı.")
+        raise ValueError("Current liabilities must be positive.")
     return current_assets / current_liabilities
 
 
 def cagr(start_value: float, end_value: float, years: float) -> float:
-    """Yıllık bileşik büyüme oranı: (bitiş / başlangıç) ^ (1 / yıl) - 1."""
+    """Compound annual growth rate: (end / start) ^ (1 / years) - 1."""
     if start_value <= 0 or end_value <= 0:
-        raise ValueError("Başlangıç ve bitiş değerleri pozitif olmalı.")
+        raise ValueError("Start and end values must be positive.")
     if years <= 0:
-        raise ValueError("Yıl sayısı pozitif olmalı.")
+        raise ValueError("Number of years must be positive.")
     return float((end_value / start_value) ** (1 / years) - 1)
 
 
 def compute_ratios(items: pd.DataFrame) -> pd.DataFrame:
-    """Yıllık kalem tablosundan (satır: dönem sonu, sütun: kalem) temel oranları hesaplar.
+    """Core ratios from the annual line-item table (rows: period end, columns: items).
 
-    Eksik kalem ya da sıfıra bölme olan oranlar NaN olarak döner; hata vermez.
+    Ratios with a missing item or division by zero come back as NaN; no error is raised.
     """
     df = items.sort_index()
     revenue = column(df, "Total Revenue")

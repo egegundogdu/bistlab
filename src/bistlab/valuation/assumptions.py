@@ -1,4 +1,4 @@
-"""Şirket bazlı değerleme varsayımlarını TOML dosyasından okur."""
+"""Reads company-level valuation assumptions from a TOML file."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class Assumptions:
 
 
 def parse(data: dict[str, Any]) -> Assumptions:
-    """TOML içeriğini Assumptions nesnesine çevirir."""
+    """Converts TOML content into an Assumptions object."""
     company, market, capital, forecast = (
         data["company"],
         data["market"],
@@ -56,7 +56,7 @@ def parse(data: dict[str, Any]) -> Assumptions:
 
 
 def load(ticker: str, directory: Path = ASSUMPTIONS_DIR) -> Assumptions:
-    """assumptions/<TICKER>.toml dosyasını okur."""
+    """Reads assumptions/<TICKER>.toml."""
     path = directory / f"{ticker.strip().upper()}.toml"
     with path.open("rb") as handle:
         return parse(tomllib.load(handle))

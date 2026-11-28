@@ -1,4 +1,4 @@
-"""Hisseler ve portföy için risk raporu."""
+"""Risk report for stocks and a portfolio."""
 
 from __future__ import annotations
 
@@ -23,26 +23,28 @@ from bistlab.valuation.beta import load_closes
 
 
 def risk_row(returns: pd.Series[float], risk_free: float, level: float) -> dict[str, float]:
-    """Tek bir getiri serisinin metrikleri (yüzde olarak)."""
+    """Metrics of a single return series (in percent)."""
     return {
-        "Yıllık getiri %": annualized_return(returns) * 100,
-        "Oynaklık %": annualized_volatility(returns) * 100,
+        "Annual return %": annualized_return(returns) * 100,
+        "Volatility %": annualized_volatility(returns) * 100,
         "Sharpe": sharpe_ratio(returns, risk_free),
-        "Maks. düşüş %": max_drawdown(returns) * 100,
-        "VaR tarihsel %": historical_var(returns, level) * 100,
-        "VaR normal %": parametric_var(returns, level) * 100,
+        "Max drawdown %": max_drawdown(returns) * 100,
+        "Historical VaR %": historical_var(returns, level) * 100,
+        "Normal VaR %": parametric_var(returns, level) * 100,
         "CVaR %": conditional_var(returns, level) * 100,
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Hisse ve portföy risk raporu.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları, ör. THYAO ASELS BIMAS")
-    parser.add_argument("--weights", nargs="+", type=float, help="Ağırlıklar (varsayılan eşit)")
-    parser.add_argument("--benchmark", help="Kıyas endeksi, ör. XU100 (portföye dahil edilmez)")
-    parser.add_argument("--years", type=int, default=2, help="Kaç yıllık veri (varsayılan 2)")
-    parser.add_argument("--risk-free", type=float, default=0.0, help="Yıllık risksiz faiz")
-    parser.add_argument("--level", type=float, default=0.95, help="VaR güven düzeyi")
+    parser = argparse.ArgumentParser(description="Stock and portfolio risk report.")
+    parser.add_argument("tickers", nargs="+", help="Tickers, e.g. THYAO ASELS BIMAS")
+    parser.add_argument("--weights", nargs="+", type=float, help="Weights (default equal)")
+    parser.add_argument(
+        "--benchmark", help="Benchmark index, e.g. XU100 (not part of the portfolio)"
+    )
+    parser.add_argument("--years", type=int, default=2, help="Years of data (default 2)")
+    parser.add_argument("--risk-free", type=float, default=0.0, help="Annual risk-free rate")
+    parser.add_argument("--level", type=float, default=0.95, help="VaR confidence level")
     args = parser.parse_args()
 
     tickers = [t.upper() for t in args.tickers]
@@ -57,15 +59,17 @@ def main() -> None:
 
     rows = {t: risk_row(returns[t], args.risk_free, args.level) for t in tickers}
     portfolio = portfolio_returns(returns[tickers], weights)
-    rows["PORTFÖY"] = risk_row(portfolio, args.risk_free, args.level)
+    rows["PORTFOLIO"] = risk_row(portfolio, args.risk_free, args.level)
     if benchmark:
-        rows[f"{benchmark} (kıyas)"] = risk_row(returns[benchmark], args.risk_free, args.level)
+        rows[f"{benchmark} (benchmark)"] = risk_row(returns[benchmark], args.risk_free, args.level)
     table = pd.DataFrame(rows).T
 
     start, end = returns.index.min().date(), returns.index.max().date()
-    print(f"Dönem: {start} → {end} ({len(returns)} işlem günü), TL bazında nominal")
-    print(f"Ağırlıklar: {dict(zip(tickers, [round(w, 3) for w in weights], strict=True))}")
-    print(f"Risksiz faiz: %{args.risk_free * 100:.1f} | VaR/CVaR: %{args.level * 100:.0f}, 1 gün\n")
+    print(f"Period: {start} → {end} ({len(returns)} trading days), nominal TRY")
+    print(f"Weights: {dict(zip(tickers, [round(w, 3) for w in weights], strict=True))}")
+    print(
+        f"Risk-free rate: {args.risk_free * 100:.1f}% | VaR/CVaR: {args.level * 100:.0f}%, 1 day\n"
+    )
     print(table.round(2).to_string())
 
 

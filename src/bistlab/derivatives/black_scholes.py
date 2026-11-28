@@ -1,4 +1,4 @@
-"""Black-Scholes-Merton opsiyon fiyatlama, Greeks ve ima edilen volatilite."""
+"""Black-Scholes-Merton option pricing, Greeks and implied volatility."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _validate(spot: float, strike: float, years: float, vol: float) -> None:
     if spot <= 0 or strike <= 0:
         raise ValueError("Spot and strike must be positive.")
     if years < 0 or vol < 0:
-        raise ValueError("Vade ve volatilite negatif olamaz.")
+        raise ValueError("Maturity and volatility cannot be negative.")
 
 
 def d1_d2(
@@ -45,12 +45,12 @@ def bs_price(
     option: OptionType = "call",
     dividend_yield: float = 0.0,
 ) -> float:
-    """Avrupa tipi opsiyon fiyatı. `rate` ve `dividend_yield` sürekli bileşik oranlardır."""
+    """European option price. `rate` and `dividend_yield` are continuously compounded."""
     _validate(spot, strike, years, vol)
     discounted_spot = spot * math.exp(-dividend_yield * years)
     discounted_strike = strike * math.exp(-rate * years)
     if years == 0 or vol == 0:
-        # Belirsizlik yok: opsiyon, iskonto edilmiş içsel değerine eşittir
+        # No uncertainty: the option equals its discounted intrinsic value
         if option == "call":
             return max(discounted_spot - discounted_strike, 0.0)
         return max(discounted_strike - discounted_spot, 0.0)
@@ -62,11 +62,11 @@ def bs_price(
 
 @dataclass(frozen=True)
 class Greeks:
-    delta: float  # spot 1 TL artınca fiyat değişimi
-    gamma: float  # spot 1 TL artınca delta değişimi
-    vega: float  # volatilite 1 puan (%1) artınca fiyat değişimi
-    theta: float  # 1 takvim günü geçince fiyat değişimi
-    rho: float  # faiz 1 puan (%1) artınca fiyat değişimi
+    delta: float  # price change when spot rises by 1
+    gamma: float  # delta change when spot rises by 1
+    vega: float  # price change for a 1-point (1%) rise in vol
+    theta: float  # price change after one calendar day
+    rho: float  # price change for a 1-point (1%) rise in rates
 
 
 def greeks(
@@ -78,7 +78,7 @@ def greeks(
     option: OptionType = "call",
     dividend_yield: float = 0.0,
 ) -> Greeks:
-    """Analitik Greeks; vade ve volatilite pozitif olmalı."""
+    """Analytical Greeks; maturity and volatility must be positive."""
     _validate(spot, strike, years, vol)
     if years == 0 or vol == 0:
         raise ValueError("Greeks require positive maturity and volatility.")
@@ -119,7 +119,7 @@ def implied_volatility(
     option: OptionType = "call",
     dividend_yield: float = 0.0,
 ) -> float:
-    """Piyasa fiyatını veren volatilite (ikiye bölme; fiyat volatiliteyle monoton artar)."""
+    """Volatility that reproduces the market price (bisection; price rises with volatility)."""
     low_price = bs_price(spot, strike, years, rate, 0.0, option, dividend_yield)
     if option == "call":
         high_price = spot * math.exp(-dividend_yield * years)
@@ -142,18 +142,24 @@ def implied_volatility(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Black-Scholes opsiyon fiyatı ve Greeks.")
-    parser.add_argument("--ticker", help="Dayanak hisse; son fiyat ve tarihsel vol. buradan")
-    parser.add_argument("--spot", type=float, help="Dayanak fiyatı (ticker yoksa zorunlu)")
-    parser.add_argument("--strike", type=float, help="Kullanım fiyatı (varsayılan: spot, ATM)")
+    parser = argparse.ArgumentParser(description="Black-Scholes option price and Greeks.")
+    parser.add_argument(
+        "--ticker", help="Underlying stock; last price and historical vol. come from it"
+    )
+    parser.add_argument("--spot", type=float, help="Underlying price (required without --ticker)")
+    parser.add_argument("--strike", type=float, help="Strike (default: spot, ATM)")
     parser.add_argument("--days", type=int, default=30, help="Calendar days to maturity")
-    parser.add_argument("--rate", type=float, default=0.40, help="Yıllık risksiz faiz (efektif)")
-    parser.add_argument("--vol", type=float, help="Yıllık volatilite (ticker varsa tarihsel)")
-    parser.add_argument("--dividend-yield", type=float, default=0.0, help="Yıllık temettü verimi")
-    parser.add_argument("--type", choices=["call", "put"], default="call", help="Opsiyon türü")
+    parser.add_argument(
+        "--rate", type=float, default=0.40, help="Annual risk-free rate (effective)"
+    )
+    parser.add_argument(
+        "--vol", type=float, help="Annual volatility (historical when --ticker is given)"
+    )
+    parser.add_argument("--dividend-yield", type=float, default=0.0, help="Annual dividend yield")
+    parser.add_argument("--type", choices=["call", "put"], default="call", help="Option type")
     args = parser.parse_args()
 
-    spot, vol, vol_note = args.spot, args.vol, "girildi"
+    spot, vol, vol_note = args.spot, args.vol, "given"
     if args.ticker:
         with Session(get_engine()) as session:
             closes = load_closes(session, args.ticker)
@@ -161,13 +167,13 @@ def main() -> None:
         if vol is None:
             last_year = closes.iloc[-253:]
             vol = annualized_volatility((last_year / last_year.shift(1) - 1).dropna())
-            vol_note = "son 1 yılın tarihsel volatilitesi"
+            vol_note = "historical volatility, last year"
     if spot is None or vol is None:
-        parser.error("--ticker ya da --spot ve --vol verilmeli.")
+        parser.error("give --ticker, or --spot and --vol.")
 
     strike = args.strike or spot
     years = args.days / 365
-    rate = math.log1p(args.rate)  # efektif yıllık → sürekli bileşik
+    rate = math.log1p(args.rate)  # effective annual → continuously compounded
     q = math.log1p(args.dividend_yield)
     option: OptionType = args.type
 
@@ -175,14 +181,14 @@ def main() -> None:
     g = greeks(spot, strike, years, rate, vol, option, q)
     forward = spot * math.exp((rate - q) * years)
 
-    name = args.ticker.upper() if args.ticker else "Dayanak"
-    print(f"{name} | spot {spot:,.2f} | kullanım {strike:,.2f} | vade {args.days} gün")
-    print(f"Faiz %{args.rate * 100:.1f} | volatilite %{vol * 100:.1f} ({vol_note})")
-    print(f"Vadeli (forward) fiyat: {forward:,.2f}\n")
-    print(f"{option.upper()} fiyatı: {price:,.4f}")
+    name = args.ticker.upper() if args.ticker else "Underlying"
+    print(f"{name} | spot {spot:,.2f} | strike {strike:,.2f} | maturity {args.days} days")
+    print(f"Rate {args.rate * 100:.1f}% | volatility {vol * 100:.1f}% ({vol_note})")
+    print(f"Forward price: {forward:,.2f}\n")
+    print(f"{option.upper()} price: {price:,.4f}")
     print(
         f"Delta {g.delta:.4f} | Gamma {g.gamma:.5f} | Vega {g.vega:.4f} | "
-        f"Theta/gün {g.theta:.4f} | Rho {g.rho:.4f}"
+        f"Theta/day {g.theta:.4f} | Rho {g.rho:.4f}"
     )
 
     rows = []
@@ -190,16 +196,16 @@ def main() -> None:
         k = spot * moneyness
         rows.append(
             {
-                "Kullanım": k,
+                "Strike": k,
                 "K / Spot": moneyness,
                 "Call": bs_price(spot, k, years, rate, vol, "call", q),
                 "Put": bs_price(spot, k, years, rate, vol, "put", q),
                 "Call delta": greeks(spot, k, years, rate, vol, "call", q).delta,
             }
         )
-    print("\nKullanım fiyatına göre:")
+    print("\nBy strike:")
     print(pd.DataFrame(rows).round(3).to_string(index=False))
-    print("\nModel varsayımları: sabit volatilite, lognormal fiyat, Avrupa tipi kullanım.")
+    print("\nModel assumptions: constant volatility, lognormal prices, European exercise.")
 
 
 if __name__ == "__main__":

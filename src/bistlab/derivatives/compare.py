@@ -1,4 +1,4 @@
-"""Aynı opsiyonu Black-Scholes, binom ağacı ve Monte Carlo ile fiyatlayıp karşılaştırır."""
+"""Prices the same option with Black-Scholes, a binomial tree and Monte Carlo."""
 
 from __future__ import annotations
 
@@ -17,15 +17,21 @@ from bistlab.valuation.beta import load_closes
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Üç yöntemle opsiyon fiyatı karşılaştırması.")
-    parser.add_argument("--ticker", help="Dayanak hisse; son fiyat ve tarihsel vol. buradan")
-    parser.add_argument("--spot", type=float, help="Dayanak fiyatı (ticker yoksa zorunlu)")
-    parser.add_argument("--strike", type=float, help="Kullanım fiyatı (varsayılan: spot)")
+    parser = argparse.ArgumentParser(description="Option price with three methods.")
+    parser.add_argument(
+        "--ticker", help="Underlying stock; last price and historical vol. come from it"
+    )
+    parser.add_argument("--spot", type=float, help="Underlying price (required without --ticker)")
+    parser.add_argument("--strike", type=float, help="Strike (default: spot)")
     parser.add_argument("--days", type=int, default=180, help="Calendar days to maturity")
-    parser.add_argument("--rate", type=float, default=0.40, help="Yıllık risksiz faiz (efektif)")
-    parser.add_argument("--vol", type=float, help="Yıllık volatilite (ticker varsa tarihsel)")
-    parser.add_argument("--steps", type=int, default=1000, help="Binom ağacı adım sayısı")
-    parser.add_argument("--paths", type=int, default=200_000, help="Monte Carlo yol sayısı")
+    parser.add_argument(
+        "--rate", type=float, default=0.40, help="Annual risk-free rate (effective)"
+    )
+    parser.add_argument(
+        "--vol", type=float, help="Annual volatility (historical when --ticker is given)"
+    )
+    parser.add_argument("--steps", type=int, default=1000, help="Binomial tree steps")
+    parser.add_argument("--paths", type=int, default=200_000, help="Monte Carlo paths")
     args = parser.parse_args()
 
     spot, vol = args.spot, args.vol
@@ -37,7 +43,7 @@ def main() -> None:
             last_year = closes.iloc[-253:]
             vol = annualized_volatility((last_year / last_year.shift(1) - 1).dropna())
     if spot is None or vol is None:
-        parser.error("--ticker ya da --spot ve --vol verilmeli.")
+        parser.error("give --ticker, or --spot and --vol.")
 
     strike = args.strike or spot
     years = args.days / 365
@@ -54,18 +60,18 @@ def main() -> None:
         low, high = mc.confidence_interval()
         rows[option.upper()] = {
             "Black-Scholes": bs_price(spot, strike, years, rate, vol, opt),
-            "Binom (Avrupa)": european,
-            "Binom (Amerikan)": american,
+            "Binomial (European)": european,
+            "Binomial (American)": american,
             "Monte Carlo": mc.price,
-            "MC %95 alt": low,
-            "MC %95 üst": high,
-            "Erken kullanım primi": american - european,
+            "MC 95% low": low,
+            "MC 95% high": high,
+            "Early exercise premium": american - european,
         }
 
-    name = args.ticker.upper() if args.ticker else "Dayanak"
-    print(f"{name} | spot {spot:,.2f} | kullanım {strike:,.2f} | vade {args.days} gün")
-    print(f"Faiz %{args.rate * 100:.1f} | volatilite %{vol * 100:.1f}")
-    print(f"Binom: {args.steps} adım | Monte Carlo: {args.paths:,} yol (karşıt değişkenli)\n")
+    name = args.ticker.upper() if args.ticker else "Underlying"
+    print(f"{name} | spot {spot:,.2f} | strike {strike:,.2f} | maturity {args.days} days")
+    print(f"Rate {args.rate * 100:.1f}% | volatility {vol * 100:.1f}%")
+    print(f"Binomial: {args.steps} steps | Monte Carlo: {args.paths:,} paths (antithetic)\n")
     print(pd.DataFrame(rows).T.round(3).to_string())
 
 
