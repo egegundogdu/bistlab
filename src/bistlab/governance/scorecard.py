@@ -1,11 +1,15 @@
-"""KAP Kurumsal Yönetim Bilgi Formu'ndan (KYBF) nicel kurumsal yönetim karnesi.
+"""Quantitative corporate-governance scorecard from the KAP Corporate Governance Information Form.
 
-KAP'ta şirket sayfası > Kurumsal Yönetim > EXCEL ile inen dosya aslında bir HTML tablosudur.
-Formdaki olgusal yanıtlardan (oy imtiyazı, bağımsız üye oranı, politikaların varlığı...)
-0-1 arası göstergeler üretilir; SPK'nın dört ana bölümü resmî ağırlıklarla birleştirilir:
-pay sahipleri %25, kamuyu aydınlatma %25, menfaat sahipleri %15, yönetim kurulu %35.
+The "EXCEL" download on a company's KAP page (Corporate Governance tab) is actually an HTML
+table. Factual answers in the form (voting privileges, share of independent members, whether
+policies exist ...) are turned into 0–1 indicators; the regulator's four main sections are
+combined with the official weights: shareholders 25%, disclosure & transparency 25%,
+stakeholders 15%, board of directors 35%.
 
-Bu bir derecelendirme notu değildir: şirket beyanına dayanır, yerinde doğrulanmamıştır.
+This is not a rating: it relies on the company's own disclosure and is not verified on site.
+
+The form is in Turkish, so the question texts, column names and answer values matched below
+(e.g. "Oy hakkında imtiyaz", "Bağımsız Üye", "evet") intentionally stay in Turkish.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ SECTION_WEIGHTS = {
     "Board of directors": 0.35,
 }
 EMPTY = {"", "-", "nan", "none"}
+NO_ANSWER = "no answer"
 
 
 @dataclass(frozen=True)
@@ -39,7 +44,7 @@ class GovernanceForm:
 class Indicator:
     section: str
     name: str
-    score: float | None  # None: formda yanıt yok
+    score: float | None  # None: no answer in the form
     raw: str
 
 
@@ -49,9 +54,9 @@ def read_form(html: str) -> GovernanceForm:
     committees = pd.DataFrame()
     for table in pd.read_html(StringIO(html)):
         columns = [str(c) for c in table.columns]
-        if "Adı-Soyadı" in columns and "Cinsiyet" in columns:
+        if "Adı-Soyadı" in columns and "Cinsiyet" in columns:  # board members table
             board = table
-        elif "Komitede Bağımsız Üyelerin Oranı" in columns:
+        elif "Komitede Bağımsız Üyelerin Oranı" in columns:  # board committees table
             committees = table
         elif table.shape[1] == 3:
             for question, answer, _ in table.itertuples(index=False):
@@ -60,7 +65,7 @@ def read_form(html: str) -> GovernanceForm:
 
 
 def find(form: GovernanceForm, key: str) -> str | None:
-    """Soru metninde `key` geçen ilk yanıt (büyük/küçük harf duyarsız)."""
+    """First answer whose question text contains `key` (case-insensitive)."""
     needle = key.casefold()
     for question, answer in form.answers.items():
         if needle in question.casefold():
@@ -73,7 +78,7 @@ def is_present(text: str | None) -> bool:
 
 
 def is_yes(text: str | None) -> bool:
-    return text is not None and text.strip().casefold().startswith("evet")
+    return text is not None and text.strip().casefold().startswith("evet")  # "yes"
 
 
 def parse_ratio(text: str | None) -> float | None:
@@ -89,7 +94,7 @@ def parse_ratio(text: str | None) -> float | None:
 
 
 def capped(value: float | None, target: float) -> float | None:
-    """Hedefe ulaşınca 1, altında orantılı."""
+    """1 once the target is reached, proportional below it."""
     return None if value is None else min(1.0, value / target)
 
 
@@ -104,8 +109,9 @@ def score_form(form: GovernanceForm) -> list[Indicator]:
     def flag(section: str, name: str, key: str, test: Callable[[str | None], bool]) -> Indicator:
         raw = find(form, key)
         score = None if raw is None else float(test(raw))
-        return Indicator(section, name, score, raw or "yanıt yok")
+        return Indicator(section, name, score, raw or NO_ANSWER)
 
+    # Turkish strings below are question texts / values from the KAP form.
     owner = parse_ratio(find(form, "En büyük pay sahibinin ortaklık oranı"))
     owner_score = None if owner is None else min(1.0, max(0.0, (0.75 - owner) / 0.50))
     independent = board_ratio(
@@ -128,46 +134,50 @@ def score_form(form: GovernanceForm) -> list[Indicator]:
             audit = parse_ratio(str(rows["Komitede Bağımsız Üyelerin Oranı"].iloc[0]))
 
     def pct(value: float | None) -> str:
-        return "yanıt yok" if value is None else f"%{value * 100:.1f}"
+        return NO_ANSWER if value is None else f"{value * 100:.1f}%"
 
-    p, k, m, y = SECTION_WEIGHTS
+    sh, dt_, st, bd = SECTION_WEIGHTS
     return [
-        flag(p, "Oyda imtiyaz yok", "Oy hakkında imtiyaz", lambda t: not is_yes(t)),
-        flag(p, "Azlık hakları genişletilmiş", "Azlık haklarının", is_yes),
-        Indicator(p, "En büyük ortak ≤ %25 (≥ %75 → 0)", owner_score, pct(owner)),
-        flag(p, "Kâr dağıtım politikası sitede", "kar dağıtım politikasının", is_present),
-        flag(k, "İnternet sitesi İngilizce", "hazırlandığı diller", lambda t: "ngilizce" in str(t)),
-        flag(k, "Genel kurul belgeleri eşanlı İngilizce", "eşanlı olarak İngilizce", is_present),
-        flag(k, "Bağış politikası sitede", "bağış ve yardımlara ilişkin politikanın", is_present),
-        flag(k, "Ücretlendirme politikası sitede", "ücretlendirme politikası", is_present),
-        flag(m, "Tazminat politikası sitede", "tazminat politikasının", is_present),
+        flag(sh, "No voting privileges", "Oy hakkında imtiyaz", lambda t: not is_yes(t)),
+        flag(sh, "Extended minority rights", "Azlık haklarının", is_yes),
+        Indicator(sh, "Largest shareholder ≤ 25% (≥ 75% → 0)", owner_score, pct(owner)),
+        flag(sh, "Dividend policy on website", "kar dağıtım politikasının", is_present),
+        flag(dt_, "Website in English", "hazırlandığı diller", lambda t: "ngilizce" in str(t)),
         flag(
-            m,
-            "Çalışanlar yönetimde temsil ediliyor",
+            dt_, "AGM documents in English at the same time", "eşanlı olarak İngilizce", is_present
+        ),
+        flag(
+            dt_, "Donation policy on website", "bağış ve yardımlara ilişkin politikanın", is_present
+        ),
+        flag(dt_, "Remuneration policy on website", "ücretlendirme politikası", is_present),
+        flag(st, "Severance policy on website", "tazminat politikasının", is_present),
+        flag(
+            st,
+            "Employees represented in management",
             "Çalışanların temsil edildiği yönetim organları",
             lambda t: is_present(t) and "bulunmamaktadır" not in str(t).casefold(),
         ),
         flag(
-            m,
-            "Çalışanlara pay edindirme planı",
+            st,
+            "Employee share plan",
             "Pay edindirme planı",
             lambda t: "bulunmuyor" not in str(t).casefold() and is_present(t),
         ),
-        flag(m, "Etik kurallar politikası", "etik kurallar politikasının", is_present),
-        flag(m, "Yolsuzlukla mücadele önlemleri", "yolsuzlukla mücadele", is_present),
-        Indicator(y, "Bağımsız üye ≥ 1/3", capped(independent, 1 / 3), pct(independent)),
-        Indicator(y, "Kadın üye ≥ %25", capped(women, 0.25), pct(women)),
-        Indicator(y, "İcracı olmayan üye oranı", non_executive, pct(non_executive)),
-        Indicator(y, "Başkan ve genel müdür ayrı kişi", split, f"{chair} / {ceo}"),
-        flag(y, "Performans değerlendirmesinde bağımsız uzman", "bağımsız uzmanlardan", is_yes),
-        Indicator(y, "YK toplantılarına katılım ≥ %90", capped(attendance, 0.9), pct(attendance)),
-        Indicator(y, "Denetim komitesi tamamen bağımsız", audit, pct(audit)),
-        flag(y, "Kadın üye çeşitlilik politikası", "çeşitlilik politikası", is_present),
+        flag(st, "Code of ethics", "etik kurallar politikasının", is_present),
+        flag(st, "Anti-corruption measures", "yolsuzlukla mücadele", is_present),
+        Indicator(bd, "Independent members ≥ 1/3", capped(independent, 1 / 3), pct(independent)),
+        Indicator(bd, "Women members ≥ 25%", capped(women, 0.25), pct(women)),
+        Indicator(bd, "Share of non-executive members", non_executive, pct(non_executive)),
+        Indicator(bd, "Chair and CEO are different people", split, f"{chair} / {ceo}"),
+        flag(bd, "Independent experts in board evaluation", "bağımsız uzmanlardan", is_yes),
+        Indicator(bd, "Board meeting attendance ≥ 90%", capped(attendance, 0.9), pct(attendance)),
+        Indicator(bd, "Audit committee fully independent", audit, pct(audit)),
+        flag(bd, "Board diversity policy (women)", "çeşitlilik politikası", is_present),
     ]
 
 
 def section_scores(indicators: list[Indicator]) -> dict[str, float]:
-    """Her bölüm: yanıtı olan göstergelerin ortalaması (0-1)."""
+    """Each section: mean of the indicators that have an answer (0–1)."""
     scores: dict[str, float] = {}
     for section in SECTION_WEIGHTS:
         values = [i.score for i in indicators if i.section == section and i.score is not None]
@@ -177,18 +187,18 @@ def section_scores(indicators: list[Indicator]) -> dict[str, float]:
 
 
 def total_score(scores: dict[str, float]) -> float:
-    """Ağırlıklı toplam, 0-10 ölçeğinde (eksik bölümün ağırlığı dağıtılır)."""
+    """Weighted total on a 0–10 scale (the weight of a missing section is redistributed)."""
     weight = sum(SECTION_WEIGHTS[s] for s in scores)
     return 10 * sum(SECTION_WEIGHTS[s] * v for s, v in scores.items()) / weight
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="KAP Kurumsal Yönetim Bilgi Formu karnesi")
+    parser = argparse.ArgumentParser(description="KAP corporate governance form scorecard")
     parser.add_argument("files", nargs="+", type=Path)
-    parser.add_argument("--detail", action="store_true", help="Göstergeleri tek tek yaz")
+    parser.add_argument("--detail", action="store_true", help="print every indicator")
     args = parser.parse_args()
 
-    print(f"{'Şirket':<10}" + "".join(f"{s[:12]:>14}" for s in SECTION_WEIGHTS) + f"{'Toplam':>9}")
+    print(f"{'Company':<10}" + "".join(f"{s[:12]:>14}" for s in SECTION_WEIGHTS) + f"{'Total':>9}")
     for path in args.files:
         indicators = score_form(read_form(path.read_text(encoding="utf-8")))
         scores = section_scores(indicators)
@@ -200,10 +210,10 @@ def main() -> None:
         if args.detail:
             for item in indicators:
                 mark = "  ?" if item.score is None else f"{item.score:>3.1f}"
-                print(f"    {mark}  {item.section[:9]:<9}  {item.name:<45} {item.raw[:40]}")
-    print("\n0-10 ölçeği; ağırlıklar SPK: pay sahipleri %25, kamuyu aydınlatma %25,")
-    print("menfaat sahipleri %15, yönetim kurulu %35. Şirket beyanına dayalı, derecelendirme")
-    print("notu değildir; yatırım tavsiyesi değildir.")
+                print(f"    {mark}  {item.section[:12]:<12}  {item.name:<45} {item.raw[:40]}")
+    print("\n0–10 scale; regulator weights: shareholders 25%, disclosure & transparency 25%,")
+    print("stakeholders 15%, board of directors 35%. Based on company self-disclosure; not a")
+    print("rating and not investment advice.")
 
 
 if __name__ == "__main__":

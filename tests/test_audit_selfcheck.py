@@ -50,7 +50,7 @@ def test_render_markdown() -> None:
         Finding("YD-01", "Yedekleme", "Yedek betiği", False, "yok | eksik", "Medium"),
     ]
     text = render_markdown(findings, dt.date(2026, 11, 26))
-    assert "Result: 1 of 2 controls pass, 1 findings" in text
+    assert "Result: 1 of 2 controls pass, 1 finding" in text
     assert "| YD-01 | Yedekleme | Yedek betiği | Finding (Medium) | yok / eksik |" in text
 
 

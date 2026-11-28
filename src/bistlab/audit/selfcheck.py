@@ -93,12 +93,16 @@ def bad_weight_sums(sums: dict[str, float], tolerance: float = 0.02) -> list[str
     return [key for key, total in sums.items() if abs(total - 1) > tolerance]
 
 
+def plural(count: int, noun: str = "finding") -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
 def render_markdown(findings: list[Finding], day: dt.date) -> str:
     passed = sum(f.passed for f in findings)
     lines = [
         f"# bistlab information systems self-audit — {day.isoformat()}",
         "",
-        f"Result: {passed} of {len(findings)} controls pass, {len(findings) - passed} findings.",
+        f"Result: {passed} of {len(findings)} controls pass, {plural(len(findings) - passed)}.",
         "",
         "| Code | Area | Control | Status | Evidence |",
         "| --- | --- | --- | --- | --- |",
@@ -547,7 +551,7 @@ def main() -> None:
         mark = "✓" if f.passed else "✗"
         print(f"{mark} {f.code:<6} {f.control:<45} {f.status:<16} {f.evidence[:60]}")
     passed = sum(f.passed for f in findings)
-    print(f"\n{len(findings)} controls: {passed} pass, {len(findings) - passed} findings")
+    print(f"\n{len(findings)} controls: {passed} pass, {plural(len(findings) - passed)}")
     if not args.no_report:
         day = dt.date.today()
         path = root / "docs" / "audit" / f"self-audit-{day.isoformat()}.md"

@@ -1,9 +1,9 @@
-"""Muhasebe tabanlı kredi skorları: Altman Z''-skoru (gelişmekte olan piyasalar) ve sentetik not.
+"""Accounting-based credit scores: Altman Z''-score (emerging markets) and synthetic rating.
 
-Kaynaklar:
-- Altman (2005), gelişmekte olan piyasa şirketleri için Z''-skoru (EM Score, sabit 3,25).
-- Damodaran, faiz karşılama oranından sentetik not ve temerrüt spreadi (büyük, finans dışı
-  şirketler tablosu, Ocak 2026). Spreadler USD bazlıdır.
+Sources:
+- Altman (2005), Z''-score for emerging-market companies (EM Score, constant 3.25).
+- Damodaran, synthetic rating and default spread from interest coverage (large non-financial
+  companies table, January 2026). Spreads are in USD terms.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from bistlab.valuation.report import load_items
 ALTMAN_SAFE = 5.85
 ALTMAN_DISTRESS = 4.35
 
-# (alt sınır, not, spread): faiz karşılama oranı alt sınırın üstündeyse o not
+# (lower bound, rating, spread): the rating applies when interest coverage is above the bound
 RATING_TABLE: list[tuple[float, str, float]] = [
     (8.5, "AAA", 0.0040),
     (6.5, "AA", 0.0055),
@@ -49,7 +49,7 @@ def altman_z_em(
     book_equity: float,
     total_liabilities: float,
 ) -> float:
-    """Z'' = 3,25 + 6,56·X1 + 3,26·X2 + 6,72·X3 + 1,05·X4."""
+    """Z'' = 3.25 + 6.56·X1 + 3.26·X2 + 6.72·X3 + 1.05·X4."""
     x1 = working_capital / total_assets
     x2 = retained_earnings / total_assets
     x3 = ebit / total_assets
@@ -66,16 +66,16 @@ def altman_zone(z: float) -> str:
 
 
 def operating_profit(items: pd.DataFrame) -> pd.Series[float]:
-    """Esas faaliyet kârı; yoksa Yahoo'nun EBIT'i.
+    """Reported operating profit; falls back to Yahoo's EBIT.
 
-    Yahoo EBIT'i vergi öncesi kâr + faizden türetir. TMS 29'da parasal pozisyon kaybı ve
-    kur zararları buna girer (ASELS 2022: EBIT 1,1 mr TL, esas faaliyet kârı 11,5 mr TL).
+    Yahoo derives EBIT from pre-tax profit plus interest. Under IAS 29 that includes the
+    monetary loss and FX losses (ASELS 2022: EBIT TRY 1.1 bn, operating profit TRY 11.5 bn).
     """
     return column(items, "Operating Income").fillna(column(items, "EBIT"))
 
 
 def interest_coverage(ebit: float, interest_expense: float) -> float:
-    """FVÖK / faiz gideri. Faiz gideri yoksa sonsuz."""
+    """EBIT / interest expense. Infinite when there is no interest expense."""
     interest = abs(interest_expense)
     if interest == 0:
         return math.inf
@@ -90,7 +90,7 @@ def synthetic_rating(coverage: float) -> tuple[str, float]:
 
 
 def credit_table(items: pd.DataFrame) -> pd.DataFrame:
-    """Her dönem için Z'', bölge, faiz karşılama, not ve spread."""
+    """Z'', zone, interest coverage, rating and spread for every period."""
     working_capital = column(items, "Working Capital").fillna(
         column(items, "Current Assets") - column(items, "Current Liabilities")
     )
@@ -106,7 +106,7 @@ def credit_table(items: pd.DataFrame) -> pd.DataFrame:
     data = pd.DataFrame(columns).dropna(subset=["wc", "re", "ebit", "ta", "eq", "tl"])
     rows = []
     for period, row in data.iterrows():
-        # row["eq"]: row.eq bir pandas metodu olduğu için köşeli parantez şart
+        # row["eq"], not row.eq: .eq is a pandas method
         z = altman_z_em(row["wc"], row["re"], row["ebit"], row["ta"], row["eq"], row["tl"])
         coverage = interest_coverage(row["ebit"], row["interest"])
         rating, spread = synthetic_rating(coverage)
@@ -124,7 +124,7 @@ def credit_table(items: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Altman Z'' ve sentetik kredi notu")
+    parser = argparse.ArgumentParser(description="Altman Z'' and synthetic credit rating")
     parser.add_argument("tickers", nargs="+")
     args = parser.parse_args()
 
@@ -138,19 +138,19 @@ def main() -> None:
             table = credit_table(items)
             print(f"\n{ticker.upper()} ({currency})")
             if table.empty:
-                print("  Yeterli kalem yok")
+                print("  Not enough line items")
                 continue
-            print("  Dönem        Z''   Bölge     FVÖK/Faiz  Not   Spread")
+            print(f"  {'Period':<10}  {'Z':>5}  {'Zone':<8}  {'EBIT/int.':>9}  {'Rtg':<4}  Spread")
             for period, row in table.iterrows():
                 cov = row["coverage"]
                 coverage = "∞" if math.isinf(cov) else f"{cov:.2f}"
                 print(
                     f"  {str(period)[:10]}  {row['z']:5.2f}  {row['zone']:<8}  {coverage:>9}  "
-                    f"{row['rating']:<4}  %{row['spread'] * 100:.2f}"
+                    f"{row['rating']:<4}  {row['spread'] * 100:.2f}%"
                 )
-    print("\nNot: Z'' bölgeleri: >5,85 güvenli, 4,35–5,85 gri, <4,35 sıkıntı.")
-    print("Spreadler Damodaran (Ocak 2026) USD tablosundan; ülke spreadi dahil değil.")
-    print("Kredi notu değil, eğitim amaçlı göstergedir; yatırım tavsiyesi değildir.")
+    print("\nNote: Z'' zones: >5.85 safe, 4.35–5.85 grey, <4.35 distress.")
+    print("Spreads from Damodaran's USD table (January 2026); no country spread included.")
+    print("An educational indicator, not a credit rating; not investment advice.")
 
 
 if __name__ == "__main__":

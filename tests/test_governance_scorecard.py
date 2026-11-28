@@ -68,16 +68,16 @@ def test_read_form_splits_tables() -> None:
 
 def test_score_form_indicators() -> None:
     scores = {i.name: i.score for i in score_form(read_form(HTML))}
-    assert scores["Oyda imtiyaz yok"] == 0.0
-    assert scores["En büyük ortak ≤ %25 (≥ %75 → 0)"] == pytest.approx(0.5)
-    assert scores["İnternet sitesi İngilizce"] == 0.0
-    assert scores["Bağımsız üye ≥ 1/3"] == 1.0  # 2/4
-    assert scores["Kadın üye ≥ %25"] == 1.0  # 2/4
-    assert scores["İcracı olmayan üye oranı"] == pytest.approx(0.75)
-    assert scores["Başkan ve genel müdür ayrı kişi"] == 0.0  # aynı kişi
-    assert scores["YK toplantılarına katılım ≥ %90"] == pytest.approx(0.5)
-    assert scores["Denetim komitesi tamamen bağımsız"] == pytest.approx(0.5)
-    assert scores["Tazminat politikası sitede"] is None  # formda yok
+    assert scores["No voting privileges"] == 0.0
+    assert scores["Largest shareholder ≤ 25% (≥ 75% → 0)"] == pytest.approx(0.5)
+    assert scores["Website in English"] == 0.0
+    assert scores["Independent members ≥ 1/3"] == 1.0  # 2/4
+    assert scores["Women members ≥ 25%"] == 1.0  # 2/4
+    assert scores["Share of non-executive members"] == pytest.approx(0.75)
+    assert scores["Chair and CEO are different people"] == 0.0  # aynı kişi
+    assert scores["Board meeting attendance ≥ 90%"] == pytest.approx(0.5)
+    assert scores["Audit committee fully independent"] == pytest.approx(0.5)
+    assert scores["Severance policy on website"] is None  # formda yok
 
 
 def test_total_score_reweights_missing_sections() -> None:
