@@ -1,20 +1,20 @@
-"""Makro stres testi: kur ve piyasa şoklarının hisseler ve portföy üzerindeki etkisi.
+"""Macro stress test: impact of FX and market shocks on stocks and a portfolio.
 
-Her hissenin haftalık TL getirisi iki faktörle açıklanır (son `--years` yıl):
+Each stock's weekly TRY return is explained by two factors (last `--years` years):
 
-    r_hisse = a + b_piyasa · r_XU100 + b_kur · r_USDTRY + e
+    r_stock = a + b_market · r_XU100 + b_fx · r_USDTRY + e
 
-Varsayımsal senaryoda tahmini etki = b_piyasa · şok_piyasa + b_kur · şok_kur.
-Tarihsel senaryoda XU100'ün verideki en kötü `--window` işlem günü bulunur; hisselerin
-o günlerdeki gerçek getirisi, modelin aynı faktör hareketleri için tahminiyle
-karşılaştırılır. Doğrusal model büyük şoklarda kırılabilir: bu karşılaştırma, modelin
-kuyruk riskini ne kadar kaçırdığını gösterir.
+Hypothetical scenario: estimated impact = b_market · shock_market + b_fx · shock_fx.
+Historical scenario: find XU100's worst `--window` trading days in the data and compare
+the stocks' actual returns over those days with the model's estimate for the same
+factor moves. A linear model can break in large shocks; the comparison shows how much
+tail risk it misses.
 
-Kur betası dikkatle okunmalı: USD/TRY haftalık hareketi küçük ve düzenli olduğu için
-(kontrollü kur patikası) katsayı gürültülüdür. |t| < 2 olan kur betası senaryoda 0
-alınır; senaryodaki kur şoku verideki en büyük haftalık hareketin çok dışındadır ve
-rapor bunu belirtir (ilk çalıştırmada ASELS +2,65, BIMAS −2,12 gibi anlamsız betalar
-%20'lik şokla −%81 / +%59 etkiye dönüşüyordu).
+Read the FX beta with care: weekly USD/TRY moves are small and steady (a managed path),
+so the coefficient is noisy. An FX beta with |t| < 2 is set to 0 in the scenarios; the
+scenario FX shock is far outside the largest weekly move in the data, and the report
+says so (in the first run, meaningless betas such as ASELS +2.65 and BIMAS −2.12
+turned a 20% shock into −81% / +59% impacts).
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ T_LIMIT = 2.0
 SCENARIOS: list[tuple[str, float, float]] = [
     ("FX shock (XU100 −10%, USD/TRY +20%)", -0.10, 0.20),
     ("Market crash (XU100 −25%, USD/TRY +5%)", -0.25, 0.05),
-    ("Birlikte (XU100 −%20, USD/TRY +%30)", -0.20, 0.30),
+    ("Combined (XU100 −20%, USD/TRY +30%)", -0.20, 0.30),
 ]
 
 
@@ -65,12 +65,12 @@ class Betas:
 
     @property
     def fx_used(self) -> float:
-        """Senaryoda kullanılan kur betası: anlamsızsa (|t| < T_LIMIT) 0."""
+        """FX beta used in scenarios: 0 when not significant (|t| < T_LIMIT)."""
         return self.fx if abs(self.t_fx) >= T_LIMIT else 0.0
 
 
 def factor_betas(y: Array, market: Array, fx: Array) -> Betas:
-    """En küçük kareler: y = a + b_m · market + b_fx · fx."""
+    """Least squares: y = a + b_m · market + b_fx · fx."""
     design = np.column_stack([np.ones_like(market), market, fx])
     coef, *_ = np.linalg.lstsq(design, y, rcond=None)
     residual = y - design @ coef
@@ -86,12 +86,12 @@ def factor_betas(y: Array, market: Array, fx: Array) -> Betas:
 
 
 def scenario_impact(betas: Betas, market_shock: float, fx_shock: float) -> float:
-    """Tahmini etki; anlamsız kur betası 0 alınır."""
+    """Estimated impact; an insignificant FX beta counts as 0."""
     return betas.market * market_shock + betas.fx_used * fx_shock
 
 
 def worst_window(closes: pd.Series[float], days: int) -> tuple[pd.Timestamp, pd.Timestamp, float]:
-    """`days` işlem günlük en kötü getiri: (başlangıç kapanışı, bitiş kapanışı, getiri)."""
+    """Worst return over `days` trading days: (start close, end close, return)."""
     change = closes / closes.shift(days) - 1
     position = int(np.nanargmin(change.to_numpy(dtype=float)))
     start, end = closes.index[position - days], closes.index[position]
@@ -115,7 +115,7 @@ def weekly_returns(points: Points) -> pd.Series[float]:
 
 
 def max_weekly_move(points: Points) -> float:
-    """Verideki en büyük mutlak haftalık değişim."""
+    """Largest absolute weekly change in the data."""
     weekly = weekly_returns(points)
     return float(weekly.abs().max()) if len(weekly) else 0.0
 
@@ -142,48 +142,48 @@ def render(
     max_fx: float,
     in_sample: bool = False,
 ) -> str:
-    lines = ["Faktör betaları (haftalık TL getirisi; XU100 ve USD/TRY)"]
+    lines = ["Factor betas (weekly TRY returns; XU100 and USD/TRY)"]
     lines.append(
-        f"{'Kod':<8}{'b_piyasa':>10}{'b_kur':>9}{'t_kur':>8}{'Senaryoda':>11}{'R²':>7}{'Hafta':>7}"
+        f"{'Ticker':<8}{'b_market':>10}{'b_fx':>9}{'t_fx':>8}{'In scen.':>11}{'R²':>7}{'Weeks':>7}"
     )
     for ticker, b in betas.items():
         lines.append(
             f"{ticker:<8}{b.market:>10.2f}{b.fx:>9.2f}{b.t_fx:>8.1f}{b.fx_used:>11.2f}"
             f"{b.r2:>7.2f}{b.n:>7}"
         )
-    lines.append(f'Kur betası |t| < {T_LIMIT:.0f} ise senaryoda 0 alınır ("Senaryoda" sütunu).')
+    lines.append(f'FX beta with |t| < {T_LIMIT:.0f} is set to 0 in scenarios ("In scen." column).')
 
-    lines += ["", "Varsayımsal senaryolar — tahmini anlık etki (TL)"]
-    header = f"{'Kod':<10}" + "".join(f"{f'S{i + 1}':>9}" for i in range(len(SCENARIOS)))
+    lines += ["", "Hypothetical scenarios — estimated instant impact (TRY)"]
+    header = f"{'Ticker':<10}" + "".join(f"{f'S{i + 1}':>9}" for i in range(len(SCENARIOS)))
     lines.append(header)
     impacts = {t: [scenario_impact(b, m, f) for _, m, f in SCENARIOS] for t, b in betas.items()}
     for ticker, row in impacts.items():
         lines.append(f"{ticker:<10}" + "".join(f"{v:>9.1%}" for v in row))
     if impacts:
         portfolio = np.mean(list(impacts.values()), axis=0)
-        lines.append(f"{'Portföy':<10}" + "".join(f"{v:>9.1%}" for v in portfolio))
+        lines.append(f"{'Portfolio':<10}" + "".join(f"{v:>9.1%}" for v in portfolio))
     for i, (name, _, _) in enumerate(SCENARIOS):
         lines.append(f"  S{i + 1}: {name}")
-    lines.append("  Portföy: eşit ağırlıklı (tahmini etkilerin ortalaması).")
+    lines.append("  Portfolio: equal weight (mean of the estimated impacts).")
     biggest = max(abs(f) for _, _, f in SCENARIOS)
     if biggest > max_fx:
         lines.append(
-            f"  Uyarı: verideki en büyük haftalık USD/TRY hareketi %{max_fx * 100:.1f}; "
-            f"%{biggest * 100:.0f}'lik kur şoku örneklem dışıdır, doğrusal tahmin zayıflar."
+            f"  Warning: the largest weekly USD/TRY move in the data is {max_fx * 100:.1f}%; "
+            f"a {biggest * 100:.0f}% FX shock is out of sample, so the linear estimate is weak."
         )
 
     start, end, market_move, fx_move = history
     lines += [
         "",
-        f"Tarihsel senaryo: XU100'ün en kötü penceresi {start} → {end}: "
+        f"Historical scenario: worst XU100 window {start} → {end}: "
         f"XU100 {market_move:+.1%}, USD/TRY {fx_move:+.1%}",
-        f"{'Kod':<8}{'Gerçek':>9}{'Model':>9}{'Fark':>9}",
+        f"{'Ticker':<8}{'Actual':>9}{'Model':>9}{'Diff.':>9}",
     ]
     if in_sample:
         lines.insert(
             -1,
-            "Not: pencere beta tahmin döneminin içinde — örneklem içi sınav; "
-            "gerçek bir dışarıdan doğrulama değildir.",
+            "Note: the window is inside the beta estimation period — an in-sample test, "
+            "not a true out-of-sample check.",
         )
     errors = []
     for ticker, b in betas.items():
@@ -196,18 +196,18 @@ def render(
         )
     if errors:
         lines.append(
-            f"Ortalama fark {np.mean(errors):+.1%}, ortalama mutlak fark "
-            f"{np.mean(np.abs(errors)):.1%} (negatif = model kaybı küçük gösterdi)."
+            f"Mean difference {np.mean(errors):+.1%}, mean absolute difference "
+            f"{np.mean(np.abs(errors)):.1%} (negative = the model understated the loss)."
         )
-    lines.append("\nEğitim amaçlıdır; yatırım tavsiyesi değildir.")
+    lines.append("\nFor education; not investment advice.")
     return "\n".join(lines)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Makro stres testi (kur ve piyasa şokları)")
+    parser = argparse.ArgumentParser(description="Macro stress test (FX and market shocks)")
     parser.add_argument("tickers", nargs="*", default=DEFAULT_TICKERS)
-    parser.add_argument("--years", type=float, default=2.0, help="beta tahmin penceresi")
-    parser.add_argument("--window", type=int, default=5, help="tarihsel pencere (işlem günü)")
+    parser.add_argument("--years", type=float, default=2.0, help="beta estimation window (years)")
+    parser.add_argument("--window", type=int, default=5, help="historical window (trading days)")
     args = parser.parse_args()
     since = dt.date.today() - dt.timedelta(days=round(365.25 * args.years))
     with get_engine().connect() as conn:
@@ -215,7 +215,7 @@ def main() -> None:
         market = load_prices(conn, MARKET, dt.date(2000, 1, 1))
         prices_all = {t: load_prices(conn, t, dt.date(2000, 1, 1)) for t in args.tickers}
     if not usd or not market:
-        raise SystemExit("USD/TRY ya da XU100 verisi yok.")
+        raise SystemExit("No USD/TRY or XU100 data.")
     recent = {t: [p for p in pts if p[0] >= since] for t, pts in prices_all.items()}
     betas = fit_all(
         recent,

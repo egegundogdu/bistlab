@@ -1,4 +1,4 @@
-"""Türev araçlar ve fon röntgeni API servisleri."""
+"""API services for derivatives tools and the fund X-ray."""
 
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def futures_hedge(
     years: int,
     multiplier: float | None,
 ) -> HedgeOut:
-    """`python -m bistlab.derivatives.futures` ile aynı hesap (eşit ağırlıklı portföy)."""
+    """Same calculation as `python -m bistlab.derivatives.futures` (equal-weight portfolio)."""
     closes = pd.concat(
         [source.closes(t).rename(t) for t in [*tickers, index]], axis=1, join="inner"
     )
@@ -170,7 +170,7 @@ def weights(pairs: list[tuple[str, float]]) -> list[WeightOut]:
 
 
 def fund_xray(source: ToolSource, code: str, years: int, compare: str | None) -> FundXrayOut:
-    """`python -m bistlab.funds.xray` ile aynı hesap. Fon yoksa KeyError."""
+    """Same calculation as `python -m bistlab.funds.xray`. KeyError if the fund is missing."""
     holdings = source.fund_holdings(code)
     if not holdings:
         raise KeyError(code)

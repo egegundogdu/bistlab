@@ -1,4 +1,4 @@
-"""KAP 'Portföy Dağılım Raporu' PDF'inden fon varlıklarını çıkarır."""
+"""Extracts fund holdings from KAP monthly portfolio breakdown report PDFs."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from bistlab.funds.tefas import get_or_create_fund
 
 CURRENCIES = {"TL", "TRY", "USD", "EUR", "GBP", "CHF", "JPY", "AUD", "CAD", "SEK", "NOK", "DKK"}
 
-# Bölüm başlığı -> varlık türü. Alt başlık (ör. "Hisse Yabancı") ana başlığı ezer.
+# Report heading (Turkish, as printed) -> asset type. A subsection overrides its section.
 SECTIONS = {
     "HİSSE SENETLERİ": "equity",
     "BORÇLANMA SENETLERİ": "debt",
@@ -40,7 +40,7 @@ SUBSECTIONS = {
     "Döviz": "fx_cash",
 }
 
-# Raporlar iki biçimde gelebiliyor: 1,234.56 (İş Portföy) ya da 1.234,56 (Ak Portföy).
+# Reports use two number formats: 1,234.56 (Is Portfoy) or 1.234,56 (Ak Portfoy).
 AMOUNT = r"-?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}"
 PERCENT = r"-?\d+[.,]\d{2}"
 ROW_END = re.compile(rf"\s(?P<value>{AMOUNT})\s+{PERCENT}\s+{PERCENT}(?:\s+{PERCENT})?\s*$")
@@ -66,26 +66,26 @@ class FundReport:
     holdings: list[Holding]
 
     def weight(self, holding: Holding) -> float:
-        """Fon toplam değerine (NAV) göre ağırlık, 0-1."""
+        """Weight relative to the fund's net asset value (NAV), 0-1."""
         return holding.market_value / self.nav
 
 
 def to_number(text: str) -> float:
-    """Son ayraç ondalık ayracıdır: '1,234.56' ve '1.234,56' -> 1234.56."""
+    """The last separator is the decimal one: '1,234.56' and '1.234,56' -> 1234.56."""
     if text.rfind(",") > text.rfind("."):
         return float(text.replace(".", "").replace(",", "."))
     return float(text.replace(",", ""))
 
 
 def split_code(line: str, previous: str) -> tuple[str, str | None]:
-    """Satırın başındaki kodu ve para birimini ayırır."""
+    """Splits the leading code and currency off a line."""
     tokens = line.split()
     if len(tokens) > 1 and tokens[1] in CURRENCIES:  # "ARASE TL", "AUD AUD"
         return tokens[0], tokens[1]
     for m in re.finditer(r"\s([A-Z]{2,3})\b", line):
         if m.group(1) in CURRENCIES:
             return line[: m.start()].strip(), m.group(1)
-    if tokens and tokens[0] in CURRENCIES:  # kod bir önceki satıra taşmış
+    if tokens and tokens[0] in CURRENCIES:  # the code spilled onto the previous line
         return previous.strip(), tokens[0]
     return re.split(r"\s+[\d,]+\.\d", line)[0].strip(), None
 
@@ -103,7 +103,7 @@ def parse_report(text: str) -> FundReport:
     fund_code = lines[0].split("-")[0].strip()
     nav_match = NAV.search(text)
     if nav_match is None:
-        raise ValueError("Net varlık değeri bulunamadı")
+        raise ValueError("Net asset value not found")
     nav = to_number(nav_match.group(1))
 
     holdings: list[Holding] = []
@@ -148,11 +148,11 @@ def parse_report(text: str) -> FundReport:
         previous = line
 
     if portfolio_value is None:
-        raise ValueError("Fon portföy değeri satırı bulunamadı")
-    # Döviz kalemleri raporda "hazır değerler"e sayılır, portföy değerine girmez.
+        raise ValueError("Fund portfolio value line not found")
+    # FX cash counts as liquid assets in the report, not in the portfolio value.
     total = sum(h.market_value for h in holdings if h.asset_type != "fx_cash")
     if abs(total - portfolio_value) > 0.0001 * portfolio_value:
-        raise ValueError(f"Kalemler toplamı {total:,.2f} != portföy {portfolio_value:,.2f}")
+        raise ValueError(f"Sum of items {total:,.2f} != portfolio {portfolio_value:,.2f}")
     return FundReport(fund_code, nav, portfolio_value, holdings)
 
 
@@ -168,7 +168,7 @@ def month_end(period: str) -> dt.date:
 
 
 def save_holdings(session: Session, report: FundReport, report_date: dt.date) -> int:
-    """Aynı fon+tarih için eski kayıtları silip yenilerini yazar."""
+    """Replaces existing rows for the same fund and date."""
     fund = get_or_create_fund(session, report.fund_code)
     session.flush()
     session.execute(
@@ -198,9 +198,9 @@ def save_holdings(session: Session, report: FundReport, report_date: dt.date) ->
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="KAP portföy dağılım raporunu içe aktar")
+    parser = argparse.ArgumentParser(description="Import a KAP portfolio breakdown report")
     parser.add_argument("pdf", type=Path)
-    parser.add_argument("--period", required=True, help="Rapor ayı, ör. 2026-10")
+    parser.add_argument("--period", required=True, help="Report month, e.g. 2026-10")
     args = parser.parse_args()
 
     report = parse_report(extract_text(args.pdf))
@@ -214,13 +214,13 @@ def main() -> None:
     by_type: dict[str, float] = defaultdict(float)
     for holding in report.holdings:
         by_type[holding.asset_type] += report.weight(holding)
-    print(f"{report.fund_code} {report_date}: {count} kalem, NAV {report.nav:,.0f} TL")
+    print(f"{report.fund_code} {report_date}: {count} holdings, NAV {report.nav:,.0f} TRY")
     for asset_type, weight in sorted(by_type.items(), key=lambda item: -item[1]):
-        print(f"  {asset_type:<18} %{weight * 100:6.2f}")
-    print(f"  {'TOPLAM':<18} %{sum(by_type.values()) * 100:6.2f}")
-    print("En büyük 10:")
+        print(f"  {asset_type:<18} {weight * 100:6.2f}%")
+    print(f"  {'TOTAL':<18} {sum(by_type.values()) * 100:6.2f}%")
+    print("Top 10:")
     for holding in sorted(report.holdings, key=lambda h: -h.market_value)[:10]:
-        print(f"  {holding.asset:<16} %{report.weight(holding) * 100:5.2f}")
+        print(f"  {holding.asset:<16} {report.weight(holding) * 100:5.2f}%")
 
 
 if __name__ == "__main__":

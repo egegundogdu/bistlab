@@ -1,4 +1,4 @@
-"""API yanıt modelleri."""
+"""API response models."""
 
 from __future__ import annotations
 
@@ -124,7 +124,7 @@ class CreditRow(BaseModel):
     period: dt.date
     z: float | None
     zone: str
-    coverage: float | None  # None: faiz gideri yok (sonsuz karşılama)
+    coverage: float | None  # None: no interest expense (infinite coverage)
     rating: str
     spread: float
 
@@ -382,7 +382,7 @@ class FrontierPoint(BaseModel):
 
 
 class PortfolioOut(BaseModel):
-    """Gerçekleşen (günlük seriden) ve beklenen (μ, Σ) ölçüler ayrı tutulur."""
+    """Realised (from the daily series) and expected (μ, Σ) measures are kept separate."""
 
     tickers: list[str]
     skipped: list[str]

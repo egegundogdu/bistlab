@@ -1,6 +1,6 @@
-"""API servisleri: veri kaynağından okur, mevcut analiz fonksiyonlarını çağırır.
+"""API services: read from a data source and call the existing analysis functions.
 
-Veri kaynağı bir arayüzdür (`DataSource`); üretimde veritabanı, testlerde sahte veri.
+The source is an interface (`DataSource`): the database in production, fakes in tests.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ class CatalogSource(Protocol):
 
 
 class DataUnavailable(Exception):
-    """Hesap için gerekli seri veritabanında yok."""
+    """A series needed for the calculation is missing."""
 
 
 def finite(value: float) -> float | None:
@@ -195,7 +195,7 @@ def macro_stress(
     usd = source.macro(FX_CODES["USD"])
     market = source.prices(MARKET, EARLIEST)
     if not usd or len(market) <= window:
-        raise DataUnavailable("USD/TRY ya da XU100 verisi yok")
+        raise DataUnavailable("No USD/TRY or XU100 data")
     prices = {t: source.prices(t, EARLIEST) for t in tickers}
     recent_usd = [p for p in usd if p[0] >= since]
     betas = fit_all(

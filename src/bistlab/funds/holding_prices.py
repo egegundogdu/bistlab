@@ -1,4 +1,4 @@
-"""Fon portföyündeki hisselerin fiyat geçmişini çeker (içeriden analiz için)."""
+"""Fetches price history for the stocks held by a fund (for look-through analysis)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from bistlab.data.db import (
     init_db,
 )
 
-# Bloomberg borsa kodu -> Yahoo Finance son eki
+# Bloomberg exchange code -> Yahoo Finance suffix
 EXCHANGE_SUFFIX = {
     "US": "",
     "GY": ".DE",
@@ -38,7 +38,7 @@ COLUMNS = ["date", "open", "high", "low", "close", "volume"]
 
 
 def to_yahoo(asset: str, asset_type: str) -> str | None:
-    """'SAHOL' -> 'SAHOL.IS', 'ENR GY' -> 'ENR.DE'. Hisse değilse None."""
+    """'SAHOL' -> 'SAHOL.IS', 'ENR GY' -> 'ENR.DE'. None if not a stock."""
     if asset_type == "equity_tr":
         return f"{asset}.IS"
     if asset_type != "equity_foreign":
@@ -50,7 +50,7 @@ def to_yahoo(asset: str, asset_type: str) -> str | None:
 
 
 def storage_ticker(symbol: str) -> str:
-    """BIST hisseleri veritabanında son eksiz duruyor (THYAO gibi)."""
+    """BIST stocks are stored without a suffix (e.g. THYAO)."""
     return symbol.removesuffix(".IS")
 
 
@@ -104,7 +104,7 @@ def save_history(session: Session, ticker: str, history: pd.DataFrame) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fondaki hisselerin fiyatlarını çek")
+    parser = argparse.ArgumentParser(description="Fetch prices for the stocks in a fund")
     parser.add_argument("fund")
     parser.add_argument("--start", default="2023-01-01")
     args = parser.parse_args()
@@ -122,24 +122,24 @@ def main() -> None:
                 total += holding.weight
             if symbol is None:
                 if holding.asset_type.startswith("equity"):
-                    missing.append(f"{holding.asset} (eşleme yok)")
+                    missing.append(f"{holding.asset} (no mapping)")
                 continue
             try:
                 history = fetch_history(symbol, start)
-            except Exception as error:  # yfinance bazen hata fırlatır
+            except Exception as error:  # yfinance sometimes raises
                 missing.append(f"{symbol} ({type(error).__name__})")
                 continue
             if history.empty:
-                missing.append(f"{symbol} (veri yok)")
+                missing.append(f"{symbol} (no data)")
                 continue
             days = save_history(session, storage_ticker(symbol), history)
             session.commit()
             covered += holding.weight
-            print(f"{symbol:<10} {days:>4} gün  ağırlık %{holding.weight * 100:5.2f}")
+            print(f"{symbol:<10} {days:>4} days  weight {holding.weight * 100:5.2f}%")
 
-    print(f"\nHisse ağırlığı: %{total * 100:.2f}, fiyatı bulunan: %{covered * 100:.2f}")
+    print(f"\nStock weight: {total * 100:.2f}%, with prices: {covered * 100:.2f}%")
     if missing:
-        print("Eksik:", ", ".join(missing))
+        print("Missing:", ", ".join(missing))
 
 
 if __name__ == "__main__":

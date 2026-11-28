@@ -1,4 +1,4 @@
-"""TCMB EVDS3 web servisinden makro veri çekme ve veritabanına yazma."""
+"""Fetches macro data from the CBRT EVDS3 web service into the database."""
 
 from __future__ import annotations
 
@@ -14,22 +14,22 @@ from bistlab.data.db import MacroObservation, get_engine, init_db
 
 BASE_URL = "https://evds3.tcmb.gov.tr/igmevdsms-dis"
 
-# EVDS3 tek istekte yaklaşık 1.000 günden fazlasını sessizce kesiyor;
-# bu yüzden uzun aralıkları yıllık parçalar hâlinde istiyoruz.
+# EVDS3 silently truncates a request beyond roughly 1,000 days,
+# so long ranges are requested in yearly chunks.
 MAX_DAYS_PER_REQUEST = 365
 
 Observation = tuple[dt.date, float]
 
 
 def build_url(code: str, start: dt.date, end: dt.date) -> str:
-    """Tek seri için EVDS3 istek adresini kurar. Anahtar URL'de değil, başlıkta gider."""
+    """Builds the EVDS3 URL for one series. The key goes in a header, not the URL."""
     return f"{BASE_URL}/series={code}&startDate={start:%d-%m-%Y}&endDate={end:%d-%m-%Y}&type=json"
 
 
 def date_windows(
     start: dt.date, end: dt.date, max_days: int = MAX_DAYS_PER_REQUEST
 ) -> list[tuple[dt.date, dt.date]]:
-    """[start, end] aralığını en fazla max_days günlük, çakışmayan parçalara böler."""
+    """Splits [start, end] into non-overlapping chunks of at most max_days days."""
     windows: list[tuple[dt.date, dt.date]] = []
     current = start
     while current <= end:
@@ -40,7 +40,7 @@ def date_windows(
 
 
 def parse_evds_date(text: str) -> dt.date:
-    """EVDS tarihini çevirir: '15-01-2026' (günlük) ya da '2026-1' (aylık, ayın ilk günü)."""
+    """Parses an EVDS date: '15-01-2026' (daily) or '2026-1' (monthly, first day)."""
     parts = text.split("-")
     if len(parts) == 3:
         day, month, year = (int(p) for p in parts)
@@ -48,11 +48,11 @@ def parse_evds_date(text: str) -> dt.date:
     if len(parts) == 2:
         year, month = (int(p) for p in parts)
         return dt.date(year, month, 1)
-    raise ValueError(f"Tanınmayan EVDS tarih biçimi: {text!r}")
+    raise ValueError(f"Unrecognised EVDS date format: {text!r}")
 
 
 def parse_items(payload: dict[str, Any], code: str) -> list[Observation]:
-    """EVDS cevabından (tarih, değer) çiftlerini çıkarır; boş değerleri atlar."""
+    """Extracts (date, value) pairs from an EVDS response; skips empty values."""
     column = code.replace(".", "_")
     rows: list[Observation] = []
     for item in payload.get("items", []):
@@ -64,12 +64,12 @@ def parse_items(payload: dict[str, Any], code: str) -> list[Observation]:
 
 
 def deduplicate(rows: list[Observation]) -> list[Observation]:
-    """Aynı tarih birden fazla gelirse sonuncuyu tutar ve tarihe göre sıralar."""
+    """Keeps the last value per date and sorts by date."""
     return sorted(dict(rows).items())
 
 
 def fetch_series(code: str, start: dt.date, end: dt.date, api_key: str) -> list[Observation]:
-    """Bir seriyi parça parça EVDS3'ten çeker (internet ve API anahtarı gerekir)."""
+    """Fetches a series from EVDS3 in chunks (needs internet and an API key)."""
     rows: list[Observation] = []
     with httpx.Client(headers={"key": api_key}, timeout=30) as client:
         for window_start, window_end in date_windows(start, end):
@@ -80,7 +80,7 @@ def fetch_series(code: str, start: dt.date, end: dt.date, api_key: str) -> list[
 
 
 def save_series(session: Session, code: str, rows: list[Observation]) -> int:
-    """Gözlemleri yazar; aynı tarih varsa günceller. Yazılan satır sayısını döner."""
+    """Upserts observations by date. Returns the number of rows written."""
     for date, value in rows:
         session.merge(MacroObservation(code=code, date=date, value=value))
     session.commit()
@@ -88,22 +88,22 @@ def save_series(session: Session, code: str, rows: list[Observation]) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EVDS serilerini çekip veritabanına yazar.")
-    parser.add_argument("codes", nargs="+", help="Seri kodları, ör. TP.DK.USD.A.YTL")
+    parser = argparse.ArgumentParser(description="Fetch EVDS series into the database.")
+    parser.add_argument("codes", nargs="+", help="Series codes, e.g. TP.DK.USD.A.YTL")
     parser.add_argument("--start", type=dt.date.fromisoformat, default=dt.date(2020, 1, 1))
     args = parser.parse_args()
 
     engine = get_engine()
     api_key = os.environ.get("EVDS_API_KEY")
     if not api_key:
-        raise RuntimeError("EVDS_API_KEY tanımlı değil. .env dosyasını kontrol et.")
+        raise RuntimeError("EVDS_API_KEY is not set. Check the .env file.")
 
     init_db(engine)
     with Session(engine) as session:
         for code in args.codes:
             rows = fetch_series(code, args.start, dt.date.today(), api_key)
             count = save_series(session, code, rows)
-            print(f"{code}: {count} gözlem kaydedildi")
+            print(f"{code}: {count} observations saved")
 
 
 if __name__ == "__main__":

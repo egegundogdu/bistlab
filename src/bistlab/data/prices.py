@@ -1,4 +1,4 @@
-"""BIST fiyat verisini çekme ve veritabanına yazma."""
+"""Fetches BIST price data into the database."""
 
 from __future__ import annotations
 
@@ -15,13 +15,13 @@ PRICE_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 
 def to_yahoo_symbol(ticker: str) -> str:
-    """BIST kodunu Yahoo Finance sembolüne çevirir: THYAO -> THYAO.IS"""
+    """BIST ticker to Yahoo Finance symbol: THYAO -> THYAO.IS"""
     ticker = ticker.strip().upper()
     return ticker if ticker.endswith(".IS") else f"{ticker}.IS"
 
 
 def normalize_prices(raw: pd.DataFrame) -> pd.DataFrame:
-    """Ham veriyi tek tip tabloya çevirir: date, open, high, low, close, volume."""
+    """Normalises raw data to: date, open, high, low, close, volume."""
     if raw.empty:
         return pd.DataFrame(columns=["date", *PRICE_COLUMNS])
     df = raw.rename(columns=str.lower)[PRICE_COLUMNS].copy()
@@ -33,13 +33,13 @@ def normalize_prices(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def fetch_prices(ticker: str, start: dt.date, end: dt.date | None = None) -> pd.DataFrame:
-    """Yahoo Finance'ten günlük fiyatları çeker (internet bağlantısı gerekir)."""
+    """Fetches daily prices from Yahoo Finance (needs internet)."""
     raw = yf.Ticker(to_yahoo_symbol(ticker)).history(start=start, end=end, auto_adjust=True)
     return normalize_prices(raw)
 
 
 def save_prices(session: Session, ticker: str, prices: pd.DataFrame) -> int:
-    """Fiyatları yazar; aynı gün zaten varsa günceller. Yazılan satır sayısını döner."""
+    """Upserts prices by day. Returns the number of rows written."""
     security = get_or_create_security(session, ticker)
 
     fetched_at = dt.datetime.now(dt.UTC)
@@ -61,8 +61,8 @@ def save_prices(session: Session, ticker: str, prices: pd.DataFrame) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="BIST fiyatlarını çekip veritabanına yazar.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları, ör. THYAO ASELS")
+    parser = argparse.ArgumentParser(description="Fetch BIST prices into the database.")
+    parser.add_argument("tickers", nargs="+", help="Tickers, e.g. THYAO ASELS")
     parser.add_argument("--start", type=dt.date.fromisoformat, default=dt.date(2020, 1, 1))
     args = parser.parse_args()
 
@@ -72,7 +72,7 @@ def main() -> None:
         for ticker in args.tickers:
             prices = fetch_prices(ticker, args.start)
             count = save_prices(session, ticker, prices)
-            print(f"{ticker}: {count} gün kaydedildi")
+            print(f"{ticker}: {count} days saved")
 
 
 if __name__ == "__main__":

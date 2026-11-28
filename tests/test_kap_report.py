@@ -66,7 +66,7 @@ def test_weights_use_nav() -> None:
 
 def test_total_mismatch_raises() -> None:
     broken = SAMPLE.replace("FON PORTFÖY DEĞERİ 950.00", "FON PORTFÖY DEĞERİ 999.00")
-    with pytest.raises(ValueError, match="toplamı"):
+    with pytest.raises(ValueError, match="Sum of items"):
         parse_report(broken)
 
 

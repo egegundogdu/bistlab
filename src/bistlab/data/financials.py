@@ -1,4 +1,4 @@
-"""Finansal tabloları (gelir tablosu, bilanço, nakit akışı) çekme ve saklama."""
+"""Fetches and stores financial statements (income, balance sheet, cash flow)."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from bistlab.data.prices import to_yahoo_symbol
 
 SOURCE = "yfinance"
 
-# (dönem sonu, tablo türü, kalem adı, değer)
+# (period end, statement, line item, value)
 FinancialRow = tuple[dt.date, str, str, float]
 
 
 def to_long(table: pd.DataFrame, statement: str) -> list[FinancialRow]:
-    """yfinance'in geniş tablosunu (satır: kalem, sütun: dönem) uzun listeye çevirir."""
+    """Converts yfinance's wide table (rows: items, columns: periods) to a long list."""
     rows: list[FinancialRow] = []
     for item, series in table.iterrows():
         for period, value in series.items():
@@ -31,11 +31,11 @@ def to_long(table: pd.DataFrame, statement: str) -> list[FinancialRow]:
 
 
 def fetch_financials(ticker: str) -> tuple[list[FinancialRow], str]:
-    """Yıllık tabloları ve raporlama para birimini çeker (internet gerekir)."""
+    """Fetches annual statements and the reporting currency (needs internet)."""
     stock = yf.Ticker(to_yahoo_symbol(ticker))
     currency = stock.info.get("financialCurrency")
     if not currency:
-        raise ValueError(f"{ticker} için raporlama para birimi bulunamadı.")
+        raise ValueError(f"No reporting currency found for {ticker}.")
 
     tables = {
         "income": stock.income_stmt,
@@ -51,7 +51,7 @@ def fetch_financials(ticker: str) -> tuple[list[FinancialRow], str]:
 def save_financials(
     session: Session, ticker: str, rows: list[FinancialRow], currency: str, source: str = SOURCE
 ) -> int:
-    """Kalemleri yazar; aynı kayıt varsa günceller. Yazılan satır sayısını döner."""
+    """Upserts line items. Returns the number of rows written."""
     security = get_or_create_security(session, ticker)
     for period_end, statement, item, value in rows:
         session.merge(
@@ -70,8 +70,8 @@ def save_financials(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Yıllık finansal tabloları çekip kaydeder.")
-    parser.add_argument("tickers", nargs="+", help="Hisse kodları, ör. THYAO ASELS")
+    parser = argparse.ArgumentParser(description="Fetch and store annual financial statements.")
+    parser.add_argument("tickers", nargs="+", help="Tickers, e.g. THYAO ASELS")
     args = parser.parse_args()
 
     engine = get_engine()
@@ -80,7 +80,7 @@ def main() -> None:
         for ticker in args.tickers:
             rows, currency = fetch_financials(ticker)
             count = save_financials(session, ticker, rows, currency)
-            print(f"{ticker}: {count} kalem kaydedildi ({currency})")
+            print(f"{ticker}: {count} items saved ({currency})")
 
 
 if __name__ == "__main__":
